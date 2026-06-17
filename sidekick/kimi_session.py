@@ -150,14 +150,14 @@ _CANON = {
 
 def _chat(cfg: Config, messages: list[dict], tools: list[dict] | None, timeout: int) -> dict:
     # kimi-k2.x reasoning models require temperature == 1 (others accept it fine).
-    body: dict = {"model": cfg.kimi_model, "messages": messages, "temperature": 1}
+    body: dict = {"model": cfg.openai_model, "messages": messages, "temperature": 1}
     if tools:
         body["tools"] = tools
         body["tool_choice"] = "auto"
     req = urllib.request.Request(
-        f"{cfg.kimi_base_url.rstrip('/')}/chat/completions",
+        f"{cfg.openai_base_url.rstrip('/')}/chat/completions",
         data=json.dumps(body).encode("utf-8"),
-        headers={"Authorization": f"Bearer {cfg.kimi_api_key}", "Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {cfg.openai_api_key}", "Content-Type": "application/json"},
         method="POST",
     )
     try:
@@ -259,7 +259,7 @@ def _assistant_message(msg: dict, content, tool_calls) -> dict:
 
 def kimi_complete(cfg: Config, system: str, user: str, timeout: int = 180) -> str:
     """One-shot completion (no tools) — used for task planning on the kimi branch."""
-    if not cfg.kimi_api_key:
+    if not cfg.openai_api_key:
         raise KimiError("no Kimi API key (set KIMI_AGENT_API_KEY)")
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     data = _chat(cfg, messages, None, timeout)
@@ -268,7 +268,7 @@ def kimi_complete(cfg: Config, system: str, user: str, timeout: int = 180) -> st
 
 async def run_kimi_agent(cfg, policy, name, prompt, cwd, on_event=None, model=None, append_system=None) -> AgentResult:
     """Async wrapper mirroring agent_session.run_agent so the orchestrator can dispatch."""
-    if not cfg.kimi_api_key:
+    if not cfg.openai_api_key:
         r = AgentResult(name=name)
         r.error = "no Kimi API key (set KIMI_AGENT_API_KEY)"
         return r

@@ -74,13 +74,44 @@ def _mk_config(args) -> Config:
         cfg.vscode = args.vscode
     if getattr(args, "provider", None):
         cfg.provider = args.provider
-    if getattr(args, "kimi_model", None):
-        cfg.kimi_model = args.kimi_model
-    if getattr(args, "kimi_base_url", None):
-        cfg.kimi_base_url = args.kimi_base_url
-    if getattr(args, "kimi_key", None):
-        cfg.kimi_api_key = args.kimi_key
+    if getattr(args, "openai_model", None):
+        cfg.openai_model = args.openai_model
+    if getattr(args, "openai_base_url", None):
+        cfg.openai_base_url = args.openai_base_url
+    if getattr(args, "openai_key", None):
+        cfg.openai_api_key = args.openai_key
     return cfg
+
+
+
+
+def _ensure_api_key_or_prompt(cfg) -> None:
+    """If cfg.openai_api_key is unset, prompt for one (TTY) or fail
+    fast with a clear message (non-TTY).
+
+    Without a key, the openai `/v1` agentic loop can't authenticate.
+    For non-interactive callers (e.g. `--json`, CI), we don't want a
+    blocking prompt — surface a clear error and exit 2 so the parent
+    can react. For interactive humans, accept the key once per run
+    (held in memory; not persisted)."""
+    if cfg.openai_api_key:
+        return
+    if not sys.stdin.isatty():
+        _print(
+            f"error: OPENAI_API_KEY is unset and stdin is not a tty — provide "
+            f"it via env (or --openai-key) before running with --json."
+        )
+        sys.exit(2)
+    try:
+        import getpass
+        key = getpass.getpass(f"OPENAI_API_KEY (input hidden, single-run use): ").strip()
+    except (EOFError, KeyboardInterrupt):
+        _print("aborted: no key provided.")
+        sys.exit(1)
+    if not key:
+        _print("aborted: empty key.")
+        sys.exit(1)
+    cfg.openai_api_key = key
 
 
 def cmd_plan(args) -> int:
@@ -116,7 +147,7 @@ def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
     --json`) that need to parse the outcome programmatically.
     """
     policy = ApprovalPolicy(level=cfg.approval)
-    backend = f"kimi:{cfg.kimi_model}" if cfg.provider == "kimi" else f"claude:{cfg.agent_model or 'default'}"
+    backend = f"openai:{cfg.openai_model}" if cfg.provider == "openai" else f"claude:{cfg.agent_model or 'default'}"
     if not emit_json:
         _print(
             f"[dim]Running {len(plan.subtasks)} subtask(s) · backend={backend} · "
@@ -132,7 +163,7 @@ def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
         # examples/delegate-to-sidekick.SKILL.md — please keep
         # backwards-compatible. The shape matches the `claude` branch's
         # envelope; the `backend` field tells the caller which sub-agent
-        # runtime was actually used (kimi vs claude).
+        # runtime was actually used (openai vs claude).
         envelope = {
             "schema_version": 1,
             "ok": exit_code == 0,
@@ -189,6 +220,7 @@ def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
 
 def cmd_run(args) -> int:
     cfg = _mk_config(args)
+    _ensure_api_key_or_prompt(cfg)
     ctx = gather(cfg.repo_root)
     emit_json = bool(getattr(args, "json", False))
     if args.plan_file:
@@ -268,6 +300,7 @@ def _capture_task_voice(seconds: int | None) -> str | None:
 
 def cmd_voice(args) -> int:
     cfg = _mk_config(args)
+    _ensure_api_key_or_prompt(cfg)
     cfg.ensure_dirs()
     task = _capture_task_voice(args.seconds)
     if not task:
@@ -320,10 +353,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--approval", help="accept_edits_allowlist | bypass | edits_no_bash")
         sp.add_argument("--model", help="Model for spawned agents (default: inherit)")
         sp.add_argument("--max-subtasks", type=int, default=6, dest="max_subtasks")
-        sp.add_argument("--provider", help="Agent backend: claude | kimi (default: kimi on this branch)")
-        sp.add_argument("--kimi-model", dest="kimi_model", help="Override KIMI_AGENT_MODEL")
-        sp.add_argument("--kimi-base-url", dest="kimi_base_url", help="Override KIMI_AGENT_BASE_URL")
-        sp.add_argument("--kimi-key", dest="kimi_key", help="Override KIMI_AGENT_API_KEY (manual)")
+        sp.add_argument("--provider", help="Agent backend: claude | openai (default: openai on this branch)")
+        sp.add_argument("--openai-model", dest="openai_model", help="Override OPENAI_MODEL (or SIDEKICK_AGENT_MODEL_NAME)")
+        sp.add_argument("--openai-base-url", dest="openai_base_url", help="Override OPENAI_BASE_URL (or SIDEKICK_AGENT_BASE_URL)")
+        sp.add_argument("--openai-key", dest="openai_key", help="Override OPENAI_API_KEY (manual)")
         sp.add_argument(
             "--vscode", dest="vscode", action="store_true", default=None,
             help="Open the live progress doc + changed files in VSCode (default: auto-detect)",
