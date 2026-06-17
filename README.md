@@ -75,14 +75,14 @@ run:
 | Var (host default) | Manual override | Default |
 |--------------------|-----------------|---------|
 | `KIMI_AGENT_BASE_URL` | `--kimi-base-url` | `https://api.moonshot.ai/v1` |
-| `KIMI_AGENT_MODEL` | `--kimi-model` | `kimi-k2.6` |
+| `KIMI_AGENT_MODEL` | `--kimi-model` | `kimi-k2.7-code` |
 | `KIMI_AGENT_API_KEY` | `--kimi-key` | — (required) |
 | `LOOPIE_PROVIDER` | `--provider` | `kimi` |
 
 ```bash
 loopie run "add input validation" --yes                 # uses Kimi (host env)
 loopie run "..." --provider claude                       # fall back to Claude Code
-loopie run "..." --kimi-model kimi-k2.6 --kimi-key sk-…  # manual creds
+loopie run "..." --kimi-model kimi-k2.7-code --kimi-key sk-…  # manual creds
 ```
 
 Notes:

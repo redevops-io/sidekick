@@ -70,7 +70,7 @@ class Config:
     kimi_model: str = field(
         default_factory=lambda: os.environ.get("KIMI_AGENT_MODEL")
         or os.environ.get("KIMI_MODEL")
-        or "kimi-k2.6"
+        or "kimi-k2.7-code"
     )
     kimi_api_key: str | None = field(
         default_factory=lambda: os.environ.get("KIMI_AGENT_API_KEY") or os.environ.get("KIMI_API_KEY")
