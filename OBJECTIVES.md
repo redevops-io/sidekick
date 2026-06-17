@@ -1,7 +1,7 @@
-# loopie — measurable objectives
+# sidekick — measurable objectives
 
-Every objective is computed by `loopie/metrics.py` from `metrics.jsonl` and printed by
-`loopie metrics` / `loopie bench`. Targets are enforcement gates: `bench` exits non-zero
+Every objective is computed by `sidekick/metrics.py` from `metrics.jsonl` and printed by
+`sidekick metrics` / `sidekick bench`. Targets are enforcement gates: `bench` exits non-zero
 if a hard target regresses.
 
 ## Speed
@@ -27,7 +27,7 @@ if a hard target regresses.
 | E2 | Cache-hit ratio | cache_read / (input + cache_read + cache_creation) | ≥ 60% |
 
 ## How optimization is driven
-`loopie bench` runs the seed task set twice — serial baseline, then orchestrated — and
+`sidekick bench` runs the seed task set twice — serial baseline, then orchestrated — and
 emits the objective table plus a per-run `metrics.jsonl`. Each change to prompt shape,
 context budget, concurrency, or approval policy is judged by its effect on this table,
 not by intuition. The cache-shaped prompt prefix (Raschka #2) is the primary lever for

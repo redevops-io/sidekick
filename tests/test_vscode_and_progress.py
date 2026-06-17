@@ -1,5 +1,5 @@
-from loopie import vscode
-from loopie.dashboard import Dashboard
+from sidekick import vscode
+from sidekick.dashboard import Dashboard
 
 
 def test_open_file_cmd_reuses_window():
@@ -16,14 +16,14 @@ def test_open_diff_cmd():
 
 def test_dashboard_writes_markdown_progress(tmp_path):
     p = tmp_path / "progress.md"
-    dash = Dashboard("loopie · test", use_rich=False, progress_path=p, concurrency=3)
+    dash = Dashboard("sidekick · test", use_rich=False, progress_path=p, concurrency=3)
     dash.register("alpha")
     dash.register("beta")
     dash.set_status("alpha", "running", "Write alpha.py")
     dash.set_status("alpha", "done")
     dash.finalize("## Result\n\n**1/2 accepted**")
     md = p.read_text(encoding="utf-8")
-    assert "# loopie · test" in md
+    assert "# sidekick · test" in md
     assert "| `alpha` |" in md and "✅ done" in md
     assert "concurrency 3" in md
     assert "## Result" in md

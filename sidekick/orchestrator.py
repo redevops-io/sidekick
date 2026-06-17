@@ -200,7 +200,7 @@ class Orchestrator:
         report.progress_path = str(progress_path)
         vscode_on = (cfg.vscode if cfg.vscode is not None else vscode.available()) and mode != "serial"
         dashboard = Dashboard(
-            f"loopie · {mode} · {clip(plan.task, 50)}",
+            f"sidekick · {mode} · {clip(plan.task, 50)}",
             progress_path=progress_path,
             concurrency=concurrency,
         )
@@ -309,11 +309,11 @@ def _commit_and_merge(manager: WorktreeManager, outcome: SubtaskOutcome) -> bool
 
     wt = Worktree(
         path=manager.worktrees_dir / outcome.subtask.id,
-        branch=outcome.branch or f"loopie/{outcome.subtask.id}",
+        branch=outcome.branch or f"sidekick/{outcome.subtask.id}",
         base=manager.base,
         root=manager.root,
     )
-    made = manager.commit_all(wt, f"loopie[{outcome.subtask.id}]: {outcome.subtask.title}")
+    made = manager.commit_all(wt, f"sidekick[{outcome.subtask.id}]: {outcome.subtask.title}")
     if not made:
         return False
     return manager.merge_clean(wt)

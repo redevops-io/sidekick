@@ -2,7 +2,7 @@
 
 Spawns `claude -p --output-format stream-json`, streams normalized events to a callback
 (for the live dashboard), enforces auto-approval via the chosen ApprovalPolicy, and
-accumulates an AgentResult with the speed/accuracy/efficiency signals loopie optimizes.
+accumulates an AgentResult with the speed/accuracy/efficiency signals sidekick optimizes.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class AgentResult:
     wall_ms: int = 0
     duration_ms: int | None = None  # model-reported
     ttft_ms: int | None = None
-    time_to_first_edit_ms: int | None = None  # loopie-measured (S3)
+    time_to_first_edit_ms: int | None = None  # sidekick-measured (S3)
     num_turns: int | None = None
     # Tools.
     tool_calls: int = 0

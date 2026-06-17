@@ -1,6 +1,6 @@
 # Validation results
 
-End-to-end validation via `loopie bench` (3 disjoint subtasks, real auto-approved
+End-to-end validation via `sidekick bench` (3 disjoint subtasks, real auto-approved
 headless Claude sessions on `claude-haiku-4-5`, serial baseline vs orchestrated at N=3).
 
 Serial baseline **35.7s** → orchestrated **6.6s** (3 parallel auto-approved agents).
@@ -29,15 +29,15 @@ guessing, then fixed and re-measured:
    generated `__pycache__/*.pyc`; `git add -A` committed them, and cross-branch bytecode
    triggered *"untracked files would be overwritten by merge — Aborting"*, silently
    failing merges and losing files. Fix: ship a base `.gitignore` for bytecode + defensive
-   unstaging in `commit_all` ([worktree.py](loopie/worktree.py)).
+   unstaging in `commit_all` ([worktree.py](sidekick/worktree.py)).
 2. **Agents wrote outside their worktree (A1 67% → 100%, S2 1.14× → 5.40×).** The worker
    prompt embedded the *main* repo path and said "at the repo root", so agents wrote
    `alpha.py` into the main checkout instead of their sandbox → `ModuleNotFoundError` on
    the checks. Fix: gather each agent's workspace summary from its **own worktree** and
-   enforce strict cwd/relative-path discipline ([orchestrator.py](loopie/orchestrator.py),
-   [prompts/](loopie/prompts/__init__.py)).
+   enforce strict cwd/relative-path discipline ([orchestrator.py](sidekick/orchestrator.py),
+   [prompts/](sidekick/prompts/__init__.py)).
 3. **Honest overhead metric (S1).** Reworked S1 to measure wall time beyond the true
    critical path (longest single agent) rather than a retry-inflated sum
-   ([metrics.py](loopie/metrics.py)).
+   ([metrics.py](sidekick/metrics.py)).
 
-Reproduce: `loopie bench`.
+Reproduce: `sidekick bench`.

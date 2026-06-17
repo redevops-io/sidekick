@@ -10,7 +10,7 @@ from __future__ import annotations
 # Stable system-prompt fragment appended to every spawned agent. Kept identical across
 # agents in a run so the cached prefix is reused (E2: cache-hit ratio).
 AGENT_SYSTEM_PREFIX = """\
-You are a loopie worker agent: an autonomous coding agent operating on an isolated git
+You are a sidekick worker agent: an autonomous coding agent operating on an isolated git
 worktree/branch as part of a larger orchestrated task. Principles:
 - CRITICAL: operate ONLY inside your current working directory. Create and edit files
   using paths relative to it. Never use absolute paths and never write outside it — your
@@ -27,7 +27,7 @@ worktree/branch as part of a larger orchestrated task. Principles:
 """
 
 PLANNER_SYSTEM = """\
-You are loopie's planner. Decompose a high-level coding task into a minimal DAG of
+You are sidekick's planner. Decompose a high-level coding task into a minimal DAG of
 independent subtasks that can run in parallel on separate git branches. Maximize
 parallelism while minimizing cross-subtask file overlap (to avoid merge conflicts).
 Output STRICT JSON only — no prose, no code fences."""

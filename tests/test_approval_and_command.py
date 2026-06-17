@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from loopie.agent_session import build_command
-from loopie.approval import ApprovalPolicy
-from loopie.config import (
+from sidekick.agent_session import build_command
+from sidekick.approval import ApprovalPolicy
+from sidekick.config import (
     APPROVAL_ACCEPT_EDITS_ALLOWLIST,
     APPROVAL_BYPASS,
     APPROVAL_EDITS_NO_BASH,

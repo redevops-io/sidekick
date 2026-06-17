@@ -2,7 +2,7 @@
 
 Each agent runs in its own worktree + branch so parallel agents never collide on the
 working tree. This isolates file changes (objective A3: low merge-conflict rate) and lets
-loopie merge green branches selectively.
+sidekick merge green branches selectively.
 """
 
 from __future__ import annotations
@@ -32,16 +32,16 @@ def ensure_repo(root: Path) -> None:
         ["git", "rev-parse", "--verify", "HEAD"], cwd=root, capture_output=True, text=True
     ).returncode == 0
     if not has_head:
-        # Seed a base commit. Ship a .gitignore for Python bytecode + loopie state so
+        # Seed a base commit. Ship a .gitignore for Python bytecode + sidekick state so
         # acceptance checks (which generate __pycache__/*.pyc) never pollute branches or
         # block merges with "untracked files would be overwritten".
         gi = root / ".gitignore"
         if not gi.exists():
-            gi.write_text("__pycache__/\n*.pyc\n.loopie/\n", encoding="utf-8")
+            gi.write_text("__pycache__/\n*.pyc\n.sidekick/\n", encoding="utf-8")
             _git(["add", ".gitignore"], root)
-            _git(["commit", "-m", "loopie: base commit"], root)
+            _git(["commit", "-m", "sidekick: base commit"], root)
         else:
-            _git(["commit", "--allow-empty", "-m", "loopie: base commit"], root)
+            _git(["commit", "--allow-empty", "-m", "sidekick: base commit"], root)
 
 
 @dataclass
@@ -83,7 +83,7 @@ class WorktreeManager:
         return self.base
 
     def create(self, name: str) -> Worktree:
-        branch = f"loopie/{name}"
+        branch = f"sidekick/{name}"
         path = self.worktrees_dir / name
         if path.exists():
             # Stale leftover from a prior run.
@@ -101,7 +101,7 @@ class WorktreeManager:
             return False
         _git(["add", "-A"], wt.path)
         # Defensively unstage Python bytecode so it never enters a branch or blocks a
-        # merge, even in repos that lack loopie's .gitignore.
+        # merge, even in repos that lack sidekick's .gitignore.
         subprocess.run(
             ["git", "reset", "-q", "--", "*.pyc", ":(glob)**/__pycache__/**"],
             cwd=str(wt.path),

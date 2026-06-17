@@ -1,10 +1,10 @@
-"""loopie command-line interface.
+"""sidekick command-line interface.
 
-  loopie run "<task>"     decompose, fan out auto-approved agents, merge, report
-  loopie plan "<task>"    print the subtask plan only
-  loopie metrics          print the objective table from metrics.jsonl
-  loopie status           show the last run's working memory
-  loopie bench            run the seed benchmark (serial baseline vs orchestrated)
+  sidekick run "<task>"     decompose, fan out auto-approved agents, merge, report
+  sidekick plan "<task>"    print the subtask plan only
+  sidekick metrics          print the objective table from metrics.jsonl
+  sidekick status           show the last run's working memory
+  sidekick bench            run the seed benchmark (serial baseline vs orchestrated)
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ def _print(msg: str = "") -> None:
 
 def render_objectives(objs: list[M.Objective]) -> None:
     if _console:
-        table = Table(title="loopie objectives", expand=False)
+        table = Table(title="sidekick objectives", expand=False)
         for col in ("id", "objective", "value", "target", "status"):
             table.add_column(col)
         for o in objs:
@@ -156,14 +156,14 @@ def cmd_run(args) -> int:
 
 
 def cmd_repl(args) -> int:
-    """Interactive loop: type a coding task, loopie fans it out. Auto-launchable on
-    VSCode folder-open so loopie is your default coding workflow."""
+    """Interactive loop: type a coding task, sidekick fans it out. Auto-launchable on
+    VSCode folder-open so sidekick is your default coding workflow."""
     cfg = _mk_config(args)
     cfg.ensure_dirs()
     banner = (
-        f"loopie repl · repo={cfg.repo_root.name} · concurrency={cfg.concurrency} · "
+        f"sidekick repl · repo={cfg.repo_root.name} · concurrency={cfg.concurrency} · "
         f"approval={ApprovalPolicy(cfg.approval).describe()}\n"
-        "Type a coding task and press Enter (loopie plans → fans out → merges). "
+        "Type a coding task and press Enter (sidekick plans → fans out → merges). "
         "Ctrl-D or 'exit' to quit."
     )
     _print(f"[bold cyan]{banner}[/bold cyan]" if _console else banner)
@@ -176,7 +176,7 @@ def cmd_repl(args) -> int:
             task = task.strip()
         else:
             try:
-                task = input("\nloopie> ").strip()
+                task = input("\nsidekick> ").strip()
             except (EOFError, KeyboardInterrupt):
                 _print("\nbye.")
                 return 0
@@ -258,7 +258,7 @@ def cmd_bench(args) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="loopie", description="Local coding-agent orchestrator.")
+    p = argparse.ArgumentParser(prog="sidekick", description="Local coding-agent orchestrator.")
     p.add_argument("--repo", default=".", help="Target repository root (default: cwd)")
     sub = p.add_subparsers(dest="cmd", required=True)
 

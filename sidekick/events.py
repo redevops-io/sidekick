@@ -1,4 +1,4 @@
-"""Normalize Claude Code `stream-json` lines into typed loopie events.
+"""Normalize Claude Code `stream-json` lines into typed sidekick events.
 
 Schema verified against a live `claude -p --output-format stream-json` run:
   * system/init    -> session_id, cwd, model, tools, permissionMode

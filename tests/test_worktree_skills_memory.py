@@ -1,9 +1,9 @@
 import subprocess
 
-from loopie.memory import SessionMemory
-from loopie.repo_context import gather
-from loopie.skills import Skill, SkillStore
-from loopie.worktree import WorktreeManager
+from sidekick.memory import SessionMemory
+from sidekick.repo_context import gather
+from sidekick.skills import Skill, SkillStore
+from sidekick.worktree import WorktreeManager
 
 
 def _init_repo(path):

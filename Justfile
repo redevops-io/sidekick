@@ -1,4 +1,4 @@
-# loopie task runner
+# sidekick task runner
 
 # Install dev deps into a uv venv
 setup:
@@ -7,11 +7,11 @@ setup:
 
 # Lint
 lint:
-    uv run ruff check loopie experiments tests
+    uv run ruff check sidekick experiments tests
 
 # Format
 fmt:
-    uv run ruff format loopie experiments tests
+    uv run ruff format sidekick experiments tests
 
 # Run unit tests (no network/agent calls)
 test:
@@ -19,16 +19,16 @@ test:
 
 # Decompose and run a task in the current repo (auto-approved fan-out)
 run task:
-    uv run loopie run "{{task}}" --yes
+    uv run sidekick run "{{task}}" --yes
 
 # Print the plan only
 plan task:
-    uv run loopie plan "{{task}}"
+    uv run sidekick plan "{{task}}"
 
 # Objective table
 metrics:
-    uv run loopie metrics
+    uv run sidekick metrics
 
 # Seed benchmark (serial baseline vs orchestrated)
 bench:
-    uv run loopie bench
+    uv run sidekick bench

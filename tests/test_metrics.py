@@ -1,6 +1,6 @@
 import dataclasses
 
-from loopie import metrics as M
+from sidekick import metrics as M
 
 
 def _sub(**kw):

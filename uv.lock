@@ -21,7 +21,7 @@ wheels = [
 ]
 
 [[package]]
-name = "loopie"
+name = "sidekick"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

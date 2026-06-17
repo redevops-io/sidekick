@@ -1,4 +1,4 @@
-# loopie — local coding-agent orchestrator
+# sidekick — local coding-agent orchestrator
 
 **Goal:** A local orchestrator that decomposes a high-level coding task, fans out to
 multiple **auto-approved Claude Code headless sessions** (each on its own git
@@ -18,8 +18,8 @@ components**.
 
 ## Architecture (maps Hermes ↔ Raschka)
 ```
-loopie/
-  loopie/
+sidekick/
+  sidekick/
     __main__.py / cli.py     CLI: run | plan | status | metrics | bench
     config.py                models, concurrency, paths, env
     repo_context.py          [Raschka #1] git status, tree, docs → workspace summary
@@ -68,7 +68,7 @@ loopie/
 - E1 Tokens per completed subtask (lower is better; tracked, optimized via cache shape).
 - E2 Prompt-cache hit ratio — target ≥ 60% (driven by stable prefix design).
 
-`loopie bench` runs seed tasks serially (baseline) then orchestrated, prints the
+`sidekick bench` runs seed tasks serially (baseline) then orchestrated, prints the
 objective table, and writes `metrics.jsonl` so every optimization is measured.
 
 ## Autonomy contract

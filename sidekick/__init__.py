@@ -1,4 +1,4 @@
-"""loopie — local coding-agent orchestrator.
+"""sidekick — local coding-agent orchestrator.
 
 Fans out a high-level coding task to multiple auto-approved Claude Code headless
 sessions, each isolated on its own git worktree/branch, with live progress and

@@ -1,6 +1,6 @@
 """VSCode integration.
 
-loopie orchestrates *headless* Claude Code sessions (so they can be auto-approved and run
+sidekick orchestrates *headless* Claude Code sessions (so they can be auto-approved and run
 in parallel), which means they do not show up as interactive sessions in the VSCode
 sidebar. Instead, progress is surfaced inside the editor by:
 
@@ -9,7 +9,7 @@ sidebar. Instead, progress is surfaced inside the editor by:
   * opening the changed files (and optional diffs) for review when the run completes.
 
 All actions are best-effort and no-op when the `code` CLI or a VSCode session is absent,
-so loopie still works headlessly / in CI.
+so sidekick still works headlessly / in CI.
 """
 
 from __future__ import annotations

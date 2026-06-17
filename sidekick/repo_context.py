@@ -14,7 +14,7 @@ from pathlib import Path
 from .context_budget import clip
 
 _DOC_CANDIDATES = ("README.md", "CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md", "Justfile")
-_SKIP_DIRS = {".git", ".loopie", "__pycache__", ".venv", "node_modules", ".pytest_cache", ".ruff_cache"}
+_SKIP_DIRS = {".git", ".sidekick", "__pycache__", ".venv", "node_modules", ".pytest_cache", ".ruff_cache"}
 
 
 def _run(args: list[str], cwd: Path) -> str:

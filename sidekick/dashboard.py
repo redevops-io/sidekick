@@ -2,7 +2,7 @@
 
 Renders a per-agent table (status, current action, edits, turns, tokens, elapsed) via
 `rich`. Degrades gracefully to periodic plain-text lines when stdout is not a TTY or rich
-is unavailable, so loopie still works in CI/logs.
+is unavailable, so sidekick still works in CI/logs.
 """
 
 from __future__ import annotations
@@ -202,7 +202,7 @@ class Dashboard:
         parts = []
         for a in self.agents.values():
             parts.append(f"{a.name}:{a.status}({a.edits}e/{a.turns}t)")
-        print(f"[loopie] {' | '.join(parts)}", flush=True)
+        print(f"[sidekick] {' | '.join(parts)}", flush=True)
 
     def finalize(self, footer: str = "") -> None:
         """Force a final write of the progress markdown (e.g. with a result footer)."""

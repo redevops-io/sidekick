@@ -5,14 +5,14 @@ Shared by all provider branches (claude, kimi, …). Records a short clip from t
 `/audio/transcriptions` endpoint, so you can speak a coding task instead of typing it.
 
 Config (all overridable; sensible host defaults):
-  LOOPIE_STT_BASE_URL  (default: $OPENAI_BASE_URL or https://api.openai.com/v1)
-  LOOPIE_STT_API_KEY   (default: $OPENAI_API_KEY)
-  LOOPIE_STT_MODEL     (default: whisper-1)
-  LOOPIE_AUDIO_INPUT   (default: auto — "pulse:default" if PulseAudio else "alsa:default")
-  LOOPIE_AUDIO_SECONDS (default: 8)
+  SIDEKICK_STT_BASE_URL  (default: $OPENAI_BASE_URL or https://api.openai.com/v1)
+  SIDEKICK_STT_API_KEY   (default: $OPENAI_API_KEY)
+  SIDEKICK_STT_MODEL     (default: whisper-1)
+  SIDEKICK_AUDIO_INPUT   (default: auto — "pulse:default" if PulseAudio else "alsa:default")
+  SIDEKICK_AUDIO_SECONDS (default: 8)
 
 Everything is best-effort: clear errors when no mic / no key / no recorder, so the rest of
-loopie keeps working without voice.
+sidekick keeps working without voice.
 """
 
 from __future__ import annotations
@@ -42,12 +42,12 @@ class STTConfig:
     @classmethod
     def from_env(cls) -> STTConfig:
         base = (
-            os.environ.get("LOOPIE_STT_BASE_URL")
+            os.environ.get("SIDEKICK_STT_BASE_URL")
             or os.environ.get("OPENAI_BASE_URL")
             or "https://api.openai.com/v1"
         ).rstrip("/")
-        key = os.environ.get("LOOPIE_STT_API_KEY") or os.environ.get("OPENAI_API_KEY")
-        model = os.environ.get("LOOPIE_STT_MODEL", "whisper-1")
+        key = os.environ.get("SIDEKICK_STT_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        model = os.environ.get("SIDEKICK_STT_MODEL", "whisper-1")
         return cls(base_url=base, api_key=key, model=model)
 
 
@@ -59,7 +59,7 @@ def available() -> bool:
 
 def record_cmd(out_path: str, seconds: int, audio_input: str | None = None) -> list[str]:
     """Build the mic-capture command (ffmpeg preferred, arecord fallback)."""
-    audio_input = audio_input or os.environ.get("LOOPIE_AUDIO_INPUT") or _default_audio_input()
+    audio_input = audio_input or os.environ.get("SIDEKICK_AUDIO_INPUT") or _default_audio_input()
     if shutil.which("ffmpeg"):
         fmt, _, dev = audio_input.partition(":")
         dev = dev or "default"
@@ -81,8 +81,8 @@ def _default_audio_input() -> str:
 
 
 def record(seconds: int | None = None, audio_input: str | None = None) -> Path:
-    seconds = seconds or int(os.environ.get("LOOPIE_AUDIO_SECONDS", "8"))
-    out = Path(tempfile.gettempdir()) / f"loopie-voice-{uuid.uuid4().hex}.wav"
+    seconds = seconds or int(os.environ.get("SIDEKICK_AUDIO_SECONDS", "8"))
+    out = Path(tempfile.gettempdir()) / f"sidekick-voice-{uuid.uuid4().hex}.wav"
     cmd = record_cmd(str(out), seconds, audio_input)
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=seconds + 20)
@@ -94,7 +94,7 @@ def record(seconds: int | None = None, audio_input: str | None = None) -> Path:
 
 
 def _multipart(fields: dict[str, str], file_field: str, file_path: Path) -> tuple[bytes, str]:
-    boundary = f"----loopie{uuid.uuid4().hex}"
+    boundary = f"----sidekick{uuid.uuid4().hex}"
     parts: list[bytes] = []
     for name, value in fields.items():
         parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n".encode())
@@ -111,7 +111,7 @@ def _multipart(fields: dict[str, str], file_field: str, file_path: Path) -> tupl
 def transcribe(audio_path: Path, cfg: STTConfig | None = None, timeout: int = 60) -> str:
     cfg = cfg or STTConfig.from_env()
     if not cfg.api_key:
-        raise VoiceError("no STT API key (set LOOPIE_STT_API_KEY or OPENAI_API_KEY)")
+        raise VoiceError("no STT API key (set SIDEKICK_STT_API_KEY or OPENAI_API_KEY)")
     body, boundary = _multipart({"model": cfg.model, "response_format": "json"}, "file", audio_path)
     req = urllib.request.Request(
         f"{cfg.base_url}/audio/transcriptions",

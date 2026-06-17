@@ -88,7 +88,7 @@ def compute(records: list[dict]) -> list[Objective]:
     objs: list[Objective] = []
 
     # S1 orchestration overhead: wall time beyond the unavoidable critical path (the
-    # single longest agent in the run). This isolates loopie's own cost — scheduling,
+    # single longest agent in the run). This isolates sidekick's own cost — scheduling,
     # worktree setup, acceptance checks, merges — from agent compute. Lower is better.
     s1 = None
     if orchestrated:

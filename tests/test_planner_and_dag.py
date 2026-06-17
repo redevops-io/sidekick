@@ -1,5 +1,5 @@
-from loopie.orchestrator import topo_waves
-from loopie.planner import Plan, Subtask, _extract_json, _parse_plan
+from sidekick.orchestrator import topo_waves
+from sidekick.planner import Plan, Subtask, _extract_json, _parse_plan
 
 
 def test_extract_json_plain():

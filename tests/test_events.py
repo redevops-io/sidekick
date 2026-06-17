@@ -1,6 +1,6 @@
 import json
 
-from loopie import events as ev
+from sidekick import events as ev
 
 
 def test_parse_init():

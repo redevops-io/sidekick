@@ -1,4 +1,4 @@
-from loopie.context_budget import TranscriptEntry, clip, reduce_transcript
+from sidekick.context_budget import TranscriptEntry, clip, reduce_transcript
 
 
 def test_clip_short_passthrough():

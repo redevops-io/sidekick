@@ -1,6 +1,6 @@
 """Procedural memory / skills (Hermes-style learning loop).
 
-After a successful run, loopie distills a lightweight, reusable "skill" — a named recipe
+After a successful run, sidekick distills a lightweight, reusable "skill" — a named recipe
 (task pattern -> approach + acceptance checks that worked) stored as JSON. On a new task,
 recall() does a simple keyword match to surface relevant prior skills, which the planner
 can use as hints. This is the minimal version of Hermes' "creates skills from experience"

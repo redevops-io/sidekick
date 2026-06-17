@@ -1,4 +1,4 @@
-"""Configuration and path resolution for loopie."""
+"""Configuration and path resolution for sidekick."""
 
 from __future__ import annotations
 
@@ -59,8 +59,8 @@ class Config:
     repo_root: Path
     claude_bin: str = field(default_factory=_resolve_claude_bin)
     # Agent execution backend. "claude" = Claude Code headless; "kimi" = Moonshot /v1 loop.
-    # On the kimi branch this defaults to "kimi"; override with LOOPIE_PROVIDER or --provider.
-    provider: str = field(default_factory=lambda: os.environ.get("LOOPIE_PROVIDER", "kimi"))
+    # On the kimi branch this defaults to "kimi"; override with SIDEKICK_PROVIDER or --provider.
+    provider: str = field(default_factory=lambda: os.environ.get("SIDEKICK_PROVIDER", "kimi"))
     # Kimi (Moonshot) backend — host env by default, overridable per run (manual).
     kimi_base_url: str = field(
         default_factory=lambda: os.environ.get("KIMI_AGENT_BASE_URL")
@@ -76,26 +76,26 @@ class Config:
         default_factory=lambda: os.environ.get("KIMI_AGENT_API_KEY") or os.environ.get("KIMI_API_KEY")
     )
     # Model for spawned agents/planner; None inherits the Claude Code default.
-    agent_model: str | None = field(default_factory=lambda: os.environ.get("LOOPIE_AGENT_MODEL") or None)
+    agent_model: str | None = field(default_factory=lambda: os.environ.get("SIDEKICK_AGENT_MODEL") or None)
     planner_model: str | None = field(
-        default_factory=lambda: os.environ.get("LOOPIE_PLANNER_MODEL") or None
+        default_factory=lambda: os.environ.get("SIDEKICK_PLANNER_MODEL") or None
     )
-    concurrency: int = field(default_factory=lambda: int(os.environ.get("LOOPIE_CONCURRENCY", "3")))
+    concurrency: int = field(default_factory=lambda: int(os.environ.get("SIDEKICK_CONCURRENCY", "3")))
     approval: str = field(
-        default_factory=lambda: os.environ.get("LOOPIE_APPROVAL", APPROVAL_ACCEPT_EDITS_ALLOWLIST)
+        default_factory=lambda: os.environ.get("SIDEKICK_APPROVAL", APPROVAL_ACCEPT_EDITS_ALLOWLIST)
     )
     # Per-agent budget guards.
-    agent_max_turns: int = field(default_factory=lambda: int(os.environ.get("LOOPIE_MAX_TURNS", "40")))
-    agent_timeout_s: int = field(default_factory=lambda: int(os.environ.get("LOOPIE_AGENT_TIMEOUT", "1800")))
-    retry_failed: int = field(default_factory=lambda: int(os.environ.get("LOOPIE_RETRY", "1")))
+    agent_max_turns: int = field(default_factory=lambda: int(os.environ.get("SIDEKICK_MAX_TURNS", "40")))
+    agent_timeout_s: int = field(default_factory=lambda: int(os.environ.get("SIDEKICK_AGENT_TIMEOUT", "1800")))
+    retry_failed: int = field(default_factory=lambda: int(os.environ.get("SIDEKICK_RETRY", "1")))
     # Context-budget limits (Raschka #4).
     clip_tool_output: int = 4000
     # VSCode integration: None = auto-detect (`code` CLI present), True/False to force.
     vscode: bool | None = field(
-        default_factory=lambda: {"1": True, "0": False}.get(os.environ.get("LOOPIE_VSCODE", ""), None)
+        default_factory=lambda: {"1": True, "0": False}.get(os.environ.get("SIDEKICK_VSCODE", ""), None)
     )
-    # Where loopie stores run state, worktrees, metrics, memory, skills.
-    state_dirname: str = ".loopie"
+    # Where sidekick stores run state, worktrees, metrics, memory, skills.
+    state_dirname: str = ".sidekick"
 
     def __post_init__(self) -> None:
         self.repo_root = Path(self.repo_root).resolve()

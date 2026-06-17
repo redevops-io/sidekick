@@ -1,6 +1,6 @@
-from loopie import kimi_session as K
-from loopie.approval import ApprovalPolicy
-from loopie.config import APPROVAL_ACCEPT_EDITS_ALLOWLIST, APPROVAL_BYPASS, APPROVAL_EDITS_NO_BASH
+from sidekick import kimi_session as K
+from sidekick.approval import ApprovalPolicy
+from sidekick.config import APPROVAL_ACCEPT_EDITS_ALLOWLIST, APPROVAL_BYPASS, APPROVAL_EDITS_NO_BASH
 
 
 def _policy(level):
@@ -60,7 +60,7 @@ def test_bypass_allows_any_bash(tmp_path):
 
 
 def test_accum_usage():
-    from loopie.agent_session import AgentResult
+    from sidekick.agent_session import AgentResult
 
     r = AgentResult(name="x")
     K._accum_usage(r, {"prompt_tokens": 10, "completion_tokens": 5, "prompt_tokens_details": {"cached_tokens": 3}})

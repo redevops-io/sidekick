@@ -4,7 +4,7 @@ Runs a fixed, disjoint 3-subtask plan on fresh scratch repos in both modes so th
 objective table (especially S2 parallel speedup) is measured, not guessed. Uses a small
 fast model by default to keep the benchmark cheap and quick.
 
-Usage: loopie bench  [--concurrency 3] [--keep]
+Usage: sidekick bench  [--concurrency 3] [--keep]
 """
 
 from __future__ import annotations
@@ -16,12 +16,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from loopie import metrics as M
-from loopie.approval import ApprovalPolicy
-from loopie.config import Config
-from loopie.orchestrator import Orchestrator
-from loopie.planner import Plan, Subtask
-from loopie.repo_context import gather
+from sidekick import metrics as M
+from sidekick.approval import ApprovalPolicy
+from sidekick.config import Config
+from sidekick.orchestrator import Orchestrator
+from sidekick.planner import Plan, Subtask
+from sidekick.repo_context import gather
 
 
 def build_seed_plan() -> Plan:
@@ -53,8 +53,8 @@ def _fresh_repo(path: Path) -> None:
         shutil.rmtree(path)
     path.mkdir(parents=True)
     subprocess.run(["git", "init", "-q"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.email", "bench@loopie"], cwd=path, check=True)
-    subprocess.run(["git", "config", "user.name", "loopie-bench"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.email", "bench@sidekick"], cwd=path, check=True)
+    subprocess.run(["git", "config", "user.name", "sidekick-bench"], cwd=path, check=True)
     subprocess.run(["git", "commit", "--allow-empty", "-q", "-m", "base"], cwd=path, check=True)
 
 
@@ -62,13 +62,13 @@ def _mk_cfg(repo: Path, concurrency: int) -> Config:
     cfg = Config(repo_root=repo)
     cfg.concurrency = concurrency
     # Cheap, fast model for the benchmark unless the user overrides via env.
-    if not os.environ.get("LOOPIE_AGENT_MODEL"):
+    if not os.environ.get("SIDEKICK_AGENT_MODEL"):
         cfg.agent_model = "claude-haiku-4-5-20251001"
     return cfg
 
 
 def run_bench(repo: str = ".", concurrency: int = 3, keep: bool = False) -> int:
-    base = Path("/tmp/loopie_bench")
+    base = Path("/tmp/sidekick_bench")
     serial_repo = base / "serial"
     orch_repo = base / "orch"
     plan = build_seed_plan()
@@ -109,7 +109,7 @@ def run_bench(repo: str = ".", concurrency: int = 3, keep: bool = False) -> int:
 
 def _render(objs: list[M.Objective]) -> None:
     try:
-        from loopie.cli import render_objectives
+        from sidekick.cli import render_objectives
 
         render_objectives(objs)
     except Exception:

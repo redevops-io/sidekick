@@ -1,16 +1,16 @@
 {
-  "// loopie": "Copy this file to .vscode/tasks.json in any repo where you want loopie to be your default coding workflow. The 'loopie' task auto-starts an interactive loopie prompt in a dedicated terminal whenever you open the folder in VSCode.",
+  "// sidekick": "Copy this file to .vscode/tasks.json in any repo where you want sidekick to be your default coding workflow. The 'sidekick' task auto-starts an interactive sidekick prompt in a dedicated terminal whenever you open the folder in VSCode.",
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "loopie",
+      "label": "sidekick",
       "type": "shell",
-      "command": "loopie repl --yes",
+      "command": "sidekick repl --yes",
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
         "focus": false,
-        "group": "loopie"
+        "group": "sidekick"
       },
       "runOptions": {
         "runOn": "folderOpen"
@@ -18,18 +18,18 @@
       "problemMatcher": []
     },
     {
-      "label": "loopie: run current task (prompt)",
+      "label": "sidekick: run current task (prompt)",
       "type": "shell",
-      "command": "loopie run \"${input:loopieTask}\" --yes",
-      "presentation": { "reveal": "always", "panel": "dedicated", "group": "loopie" },
+      "command": "sidekick run \"${input:sidekickTask}\" --yes",
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "sidekick" },
       "problemMatcher": []
     }
   ],
   "inputs": [
     {
-      "id": "loopieTask",
+      "id": "sidekickTask",
       "type": "promptString",
-      "description": "Coding task to fan out via loopie"
+      "description": "Coding task to fan out via sidekick"
     }
   ]
 }

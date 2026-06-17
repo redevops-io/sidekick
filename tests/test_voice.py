@@ -2,20 +2,20 @@ from pathlib import Path
 
 import pytest
 
-from loopie import voice
+from sidekick import voice
 
 
 def test_stt_config_from_env(monkeypatch):
-    monkeypatch.setenv("LOOPIE_STT_BASE_URL", "https://example.com/v1/")
-    monkeypatch.setenv("LOOPIE_STT_API_KEY", "k")
-    monkeypatch.setenv("LOOPIE_STT_MODEL", "whisper-x")
+    monkeypatch.setenv("SIDEKICK_STT_BASE_URL", "https://example.com/v1/")
+    monkeypatch.setenv("SIDEKICK_STT_API_KEY", "k")
+    monkeypatch.setenv("SIDEKICK_STT_MODEL", "whisper-x")
     cfg = voice.STTConfig.from_env()
     assert cfg.base_url == "https://example.com/v1"  # trailing slash stripped
     assert cfg.api_key == "k" and cfg.model == "whisper-x"
 
 
 def test_stt_config_defaults(monkeypatch):
-    for k in ("LOOPIE_STT_BASE_URL", "OPENAI_BASE_URL", "LOOPIE_STT_MODEL"):
+    for k in ("SIDEKICK_STT_BASE_URL", "OPENAI_BASE_URL", "SIDEKICK_STT_MODEL"):
         monkeypatch.delenv(k, raising=False)
     cfg = voice.STTConfig.from_env()
     assert cfg.base_url == "https://api.openai.com/v1"
