@@ -129,6 +129,31 @@ Toggle the editor integration with `--vscode` / `--no-vscode` or `LOOPIE_VSCODE=
 (auto-detected from the `code` CLI). A per-agent VSCode **window** on each worktree is not
 opened by default — set it up with a `code <worktree>` step if you want one window per agent.
 
+## Voice input
+
+Speak a task instead of typing it — works in the VSCode integrated terminal (it uses the
+OS mic via `ffmpeg`/`arecord`, which the terminal process can access).
+
+```bash
+loopie voice                 # press Enter, speak, loopie plans → fans out → merges
+loopie voice --transcribe-only   # just print what it heard
+loopie repl --voice          # voice-driven interactive loop (great for the VSCode task)
+```
+
+Speech-to-text goes through an **OpenAI-compatible `/audio/transcriptions`** endpoint, so
+it is provider-independent from the coding model (shared by the `claude`, `kimi`, … branches):
+
+| Var | Default |
+|-----|---------|
+| `LOOPIE_STT_BASE_URL` | `$OPENAI_BASE_URL` or `https://api.openai.com/v1` |
+| `LOOPIE_STT_API_KEY` | `$OPENAI_API_KEY` |
+| `LOOPIE_STT_MODEL` | `whisper-1` |
+| `LOOPIE_AUDIO_INPUT` | auto (`pulse:default` / `alsa:default`) |
+| `LOOPIE_AUDIO_SECONDS` | `8` |
+
+Requires `ffmpeg` or `arecord` plus an STT key; degrades gracefully with a clear message
+if either is missing.
+
 ## Usage
 
 ```bash
@@ -136,6 +161,8 @@ just setup                              # uv venv + editable install
 loopie plan "add input validation"      # see the subtask DAG
 loopie run "add input validation" --yes # fan out, auto-approve, merge, report
 loopie repl                             # interactive task loop (VSCode auto-launch)
+loopie voice                            # speak a task; loopie runs it
+loopie repl --voice                     # voice-driven loop
 loopie metrics                          # objective table from .loopie/metrics.jsonl
 loopie status                           # last run's working memory
 loopie bench                            # serial baseline vs orchestrated (proves S2)

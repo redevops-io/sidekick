@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 from . import metrics as M
+from . import voice as V
 from .approval import ApprovalPolicy
 from .config import Config
 from .orchestrator import Orchestrator
@@ -158,11 +159,18 @@ def cmd_repl(args) -> int:
     )
     _print(f"[bold cyan]{banner}[/bold cyan]" if _console else banner)
     while True:
-        try:
-            task = input("\nloopie> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            _print("\nbye.")
-            return 0
+        if getattr(args, "voice", False):
+            task = _capture_task_voice(args.seconds)
+            if task is None:
+                _print("(no input — Ctrl-C again to exit)")
+                continue
+            task = task.strip()
+        else:
+            try:
+                task = input("\nloopie> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                _print("\nbye.")
+                return 0
         if not task:
             continue
         if task in ("exit", "quit"):
@@ -175,6 +183,43 @@ def cmd_repl(args) -> int:
             _print("skipped.")
             continue
         _orchestrate(cfg, ctx, plan)
+
+
+def _capture_task_voice(seconds: int | None) -> str | None:
+    """Record a spoken task and return the transcript, or None on error/empty."""
+    if not V.available():
+        _print("voice unavailable: need ffmpeg/arecord + an STT key (e.g. OPENAI_API_KEY).")
+        return None
+    try:
+        input("[voice] press Enter, then speak your task…")
+    except (EOFError, KeyboardInterrupt):
+        return None
+    _print("[dim]listening…[/dim]" if _console else "listening…")
+    try:
+        task = V.listen(seconds)
+    except V.VoiceError as e:
+        _print(f"voice error: {e}")
+        return None
+    _print(f"[bold]heard:[/bold] {task}" if _console else f"heard: {task}")
+    return task or None
+
+
+def cmd_voice(args) -> int:
+    cfg = _mk_config(args)
+    cfg.ensure_dirs()
+    task = _capture_task_voice(args.seconds)
+    if not task:
+        return 1
+    if args.transcribe_only:
+        return 0
+    ctx = gather(cfg.repo_root)
+    _print("[dim]planning…[/dim]" if _console else "planning…")
+    plan = make_plan(cfg, ctx, task, max_subtasks=args.max_subtasks)
+    save_plan(plan, cfg.state_dir / "last_plan.json")
+    if not args.yes and not _confirm_plan(plan):
+        _print("Aborted.")
+        return 1
+    return _orchestrate(cfg, ctx, plan)
 
 
 def cmd_metrics(args) -> int:
@@ -231,8 +276,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     rep = sub.add_parser("repl", help="Interactive task loop (auto-launch on VSCode open)")
     rep.add_argument("-y", "--yes", action="store_true", help="Skip plan confirmation per task")
+    rep.add_argument("--voice", action="store_true", help="Speak each task instead of typing")
+    rep.add_argument("--seconds", type=int, default=None, help="Voice clip length (default 8)")
     add_agent_opts(rep)
     rep.set_defaults(func=cmd_repl)
+
+    vp = sub.add_parser("voice", help="Speak one coding task and run it")
+    vp.add_argument("--seconds", type=int, default=None, help="Recording length (default 8)")
+    vp.add_argument("-y", "--yes", action="store_true", help="Skip plan confirmation")
+    vp.add_argument(
+        "--transcribe-only", dest="transcribe_only", action="store_true",
+        help="Just print the transcript; don't run it",
+    )
+    add_agent_opts(vp)
+    vp.set_defaults(func=cmd_voice)
 
     pp = sub.add_parser("plan", help="Print the subtask plan only")
     pp.add_argument("task", help="High-level task")
