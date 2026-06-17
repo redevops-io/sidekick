@@ -98,6 +98,36 @@ def _confirm_plan(plan) -> bool:
     return resp in ("", "y", "yes")
 
 
+def _orchestrate(cfg: Config, ctx, plan) -> int:
+    """Run a plan to completion, print the result + objective table."""
+    policy = ApprovalPolicy(level=cfg.approval)
+    _print(
+        f"[dim]Running {len(plan.subtasks)} subtask(s) · concurrency={cfg.concurrency} · "
+        f"approval={policy.describe()}[/dim]"
+        if _console
+        else f"Running {len(plan.subtasks)} subtask(s) · concurrency={cfg.concurrency}"
+    )
+    report = asyncio.run(Orchestrator(cfg, policy).run(plan, ctx, mode="orchestrated"))
+    _print(
+        f"\n[bold]Done:[/bold] {report.n_accepted}/{len(report.outcomes)} accepted, "
+        f"{report.n_merged} merged, wall {report.wall_ms/1000:.1f}s"
+        if _console
+        else f"\nDone: {report.n_accepted}/{len(report.outcomes)} accepted, "
+        f"{report.n_merged} merged, wall {report.wall_ms/1000:.1f}s"
+    )
+    for o in report.outcomes:
+        flag = "✓" if o.accepted else "✗"
+        _print(f"  {flag} [{o.subtask.id}] attempts={o.attempts} merged={o.merged}")
+    if report.progress_path:
+        _print(
+            f"[dim]live progress doc: {report.progress_path}[/dim]"
+            if _console
+            else f"progress: {report.progress_path}"
+        )
+    render_objectives(M.compute(M.load(cfg.metrics_path)))
+    return 0 if report.n_accepted == len(report.outcomes) else 2
+
+
 def cmd_run(args) -> int:
     cfg = _mk_config(args)
     ctx = gather(cfg.repo_root)
@@ -112,31 +142,39 @@ def cmd_run(args) -> int:
     if not args.yes and not _confirm_plan(plan):
         _print("Aborted.")
         return 1
+    return _orchestrate(cfg, ctx, plan)
 
-    policy = ApprovalPolicy(level=cfg.approval)
-    _print(
-        f"[dim]Running {len(plan.subtasks)} subtask(s) · concurrency={cfg.concurrency} · "
-        f"approval={policy.describe()}[/dim]"
-        if _console
-        else f"Running {len(plan.subtasks)} subtask(s) · concurrency={cfg.concurrency}"
-    )
-    orch = Orchestrator(cfg, policy)
-    report = asyncio.run(orch.run(plan, ctx, mode="orchestrated"))
 
-    _print(
-        f"\n[bold]Done:[/bold] {report.n_accepted}/{len(report.outcomes)} accepted, "
-        f"{report.n_merged} merged, wall {report.wall_ms/1000:.1f}s"
-        if _console
-        else f"\nDone: {report.n_accepted}/{len(report.outcomes)} accepted, "
-        f"{report.n_merged} merged, wall {report.wall_ms/1000:.1f}s"
+def cmd_repl(args) -> int:
+    """Interactive loop: type a coding task, loopie fans it out. Auto-launchable on
+    VSCode folder-open so loopie is your default coding workflow."""
+    cfg = _mk_config(args)
+    cfg.ensure_dirs()
+    banner = (
+        f"loopie repl · repo={cfg.repo_root.name} · concurrency={cfg.concurrency} · "
+        f"approval={ApprovalPolicy(cfg.approval).describe()}\n"
+        "Type a coding task and press Enter (loopie plans → fans out → merges). "
+        "Ctrl-D or 'exit' to quit."
     )
-    for o in report.outcomes:
-        flag = "✓" if o.accepted else "✗"
-        _print(f"  {flag} [{o.subtask.id}] attempts={o.attempts} merged={o.merged}")
-    if report.progress_path:
-        _print(f"[dim]live progress doc: {report.progress_path}[/dim]" if _console else f"progress: {report.progress_path}")
-    render_objectives(M.compute(M.load(cfg.metrics_path)))
-    return 0 if report.n_accepted == len(report.outcomes) else 2
+    _print(f"[bold cyan]{banner}[/bold cyan]" if _console else banner)
+    while True:
+        try:
+            task = input("\nloopie> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            _print("\nbye.")
+            return 0
+        if not task:
+            continue
+        if task in ("exit", "quit"):
+            return 0
+        ctx = gather(cfg.repo_root)
+        _print("[dim]planning…[/dim]" if _console else "planning…")
+        plan = make_plan(cfg, ctx, task, max_subtasks=args.max_subtasks)
+        save_plan(plan, cfg.state_dir / "last_plan.json")
+        if not args.yes and not _confirm_plan(plan):
+            _print("skipped.")
+            continue
+        _orchestrate(cfg, ctx, plan)
 
 
 def cmd_metrics(args) -> int:
@@ -190,6 +228,11 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("-y", "--yes", action="store_true", help="Skip plan confirmation")
     add_agent_opts(rp)
     rp.set_defaults(func=cmd_run)
+
+    rep = sub.add_parser("repl", help="Interactive task loop (auto-launch on VSCode open)")
+    rep.add_argument("-y", "--yes", action="store_true", help="Skip plan confirmation per task")
+    add_agent_opts(rep)
+    rep.set_defaults(func=cmd_repl)
 
     pp = sub.add_parser("plan", help="Print the subtask plan only")
     pp.add_argument("task", help="High-level task")

@@ -77,12 +77,39 @@ interactive sessions in the VSCode sidebar (that sidebar session is the one you 
 You can run loopie from VSCode's integrated terminal (or its Claude Code extension
 terminal) and keep `progress.md` open beside it.
 
+## Make loopie your default coding workflow in VSCode
+
+The Claude Code **sidebar session cannot be transparently rerouted** through loopie (the
+extension runs the agent in-process; there's no supported reroute hook). What you *can* do
+is have loopie ready and waiting the moment you open a folder:
+
+1. **Put loopie on PATH** (so VSCode tasks can call it):
+   ```bash
+   cd /path/to/loopie && uv tool install --editable .   # or: pipx install -e .
+   ```
+2. **Auto-launch on folder open.** Copy [`examples/vscode/tasks.json`](examples/vscode/tasks.json)
+   to `.vscode/tasks.json` in any repo. On open, VSCode starts **`loopie repl`** in a
+   dedicated terminal (it asks once to "Allow Automatic Tasks"). Type a task → loopie
+   plans → fans out auto-approved agents → merges, with `progress.md` live beside it.
+3. **Optional hotkey:** [`examples/vscode/keybindings.json`](examples/vscode/keybindings.json)
+   binds `Ctrl+Alt+L` to a "run task" prompt.
+4. **Optional terminal alias** (integrated terminal): add to `~/.bashrc`
+   ```bash
+   cc() { loopie run "$@" --yes; }   # then:  cc "add unit tests for parser.py"
+   ```
+   Safe from recursion — loopie invokes the Claude binary by its absolute
+   `$CLAUDE_CODE_EXECPATH`, never the shell `claude`.
+
+Use the interactive sidebar session to *drive* loopie (e.g. ask it to run `loopie run …`),
+and let loopie own the parallel, auto-approved execution.
+
 ## Usage
 
 ```bash
 just setup                              # uv venv + editable install
 loopie plan "add input validation"      # see the subtask DAG
 loopie run "add input validation" --yes # fan out, auto-approve, merge, report
+loopie repl                             # interactive task loop (VSCode auto-launch)
 loopie metrics                          # objective table from .loopie/metrics.jsonl
 loopie status                           # last run's working memory
 loopie bench                            # serial baseline vs orchestrated (proves S2)

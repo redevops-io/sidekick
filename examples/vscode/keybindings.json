@@ -1,0 +1,9 @@
+// Optional: add to your VSCode keybindings.json (Cmd/Ctrl+Shift+P → "Open Keyboard
+// Shortcuts (JSON)") to fire the loopie task prompt with a hotkey.
+[
+  {
+    "key": "ctrl+alt+l",
+    "command": "workbench.action.tasks.runTask",
+    "args": "loopie: run current task (prompt)"
+  }
+]
