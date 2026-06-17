@@ -3,8 +3,9 @@
 A **local coding-agent orchestrator**. Give it a high-level task and it:
 
 1. decomposes the task into a **DAG of subtasks**,
-2. fans out one **auto-approved, headless Claude Code session per subtask**, each isolated
-   on its own **git worktree/branch**,
+2. fans out one **auto-approved, headless coding agent per subtask** (Claude Code or — on
+   this `kimi` branch by default — Kimi via Moonshot `/v1`), each isolated on its own
+   **git worktree/branch**,
 3. shows **live progress** — both a terminal `rich` table and a live `progress.md`
    document that opens in **VSCode** and auto-reloads as agents work,
 4. runs each subtask's **acceptance checks** (retrying once on failure),
@@ -30,6 +31,7 @@ significant deviations.
 | `repo_context.py` | workspace summary (branch, tree, docs) | Raschka #1 |
 | `prompts/` | stable system prefix + dynamic suffix for cache reuse | Raschka #2 |
 | `agent_session.py` + `approval.py` | headless `claude -p` wrapper, auto-approval policy | Raschka #3 |
+| `kimi_session.py` | native Kimi (Moonshot) `/v1` agentic tool loop | Raschka #3 / Hermes |
 | `context_budget.py` | output clipping + tiered transcript reduction | Raschka #4 |
 | `memory.py` | transcript + working memory as JSON on disk | Raschka #5 |
 | `orchestrator.py` | DAG waves, bounded parallel agents, merge | Raschka #6 / Hermes |
@@ -58,6 +60,39 @@ Each session runs inside its own worktree, so parallel agents never collide.
 
 Three approval levels (`--approval`): `accept_edits_allowlist` (default), `bypass`
 (`--allow-dangerously-skip-permissions`), `edits_no_bash`.
+
+## Provider backends (this is the `kimi` branch)
+
+loopie supports pluggable agent execution backends, selected by `--provider` (or
+`LOOPIE_PROVIDER`). **On the `kimi` branch the default is `kimi`** — both task *planning*
+and agent *execution* run on Moonshot's Kimi via the OpenAI-compatible `/v1` API, through a
+self-contained agentic tool loop (`read_file`/`write_file`/`edit_file`/`list_dir`/`run_bash`/
+`finish`), reusing loopie's worktrees, auto-approval, dashboard, metrics, and merge.
+
+Credentials are read from the **host environment by default**, or provided **manually** per
+run:
+
+| Var (host default) | Manual override | Default |
+|--------------------|-----------------|---------|
+| `KIMI_AGENT_BASE_URL` | `--kimi-base-url` | `https://api.moonshot.ai/v1` |
+| `KIMI_AGENT_MODEL` | `--kimi-model` | `kimi-k2.6` |
+| `KIMI_AGENT_API_KEY` | `--kimi-key` | — (required) |
+| `LOOPIE_PROVIDER` | `--provider` | `kimi` |
+
+```bash
+loopie run "add input validation" --yes                 # uses Kimi (host env)
+loopie run "..." --provider claude                       # fall back to Claude Code
+loopie run "..." --kimi-model kimi-k2.6 --kimi-key sk-…  # manual creds
+```
+
+Notes:
+- `kimi-k2.x` are **reasoning models**: loopie sends `temperature=1` (the only value they
+  accept) and they think before acting, so planning/first-token latency is higher than
+  Claude's but token cost per subtask is markedly lower.
+- The same auto-approval policy applies: edits are auto-approved; `run_bash` is gated to
+  the scoped allowlist (or disabled under `edits_no_bash`, unrestricted under `bypass`).
+- Branch model: shared features (voice, orchestration, metrics) live on `claude` and merge
+  into provider branches; `openai`/`grok` branches follow the same pattern via their keys.
 
 ## Showing progress in VSCode
 

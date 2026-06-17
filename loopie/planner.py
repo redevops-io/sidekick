@@ -114,8 +114,19 @@ def _fallback_plan(task: str) -> Plan:
 
 
 def make_plan(cfg: Config, ctx: RepoContext, task: str, max_subtasks: int = 6) -> Plan:
-    """Produce a Plan by querying Claude headless; fall back to a single subtask."""
+    """Produce a Plan by querying the configured provider; fall back to a single subtask."""
     prompt = planner_prompt(task, ctx.render(), max_subtasks)
+
+    if getattr(cfg, "provider", "claude") == "kimi":
+        from .kimi_session import KimiError, kimi_complete
+
+        try:
+            text = kimi_complete(cfg, PLANNER_SYSTEM, prompt)
+        except KimiError:
+            return _fallback_plan(task)
+        data = _extract_json(text)
+        return _parse_plan(task, data) if data else _fallback_plan(task)
+
     cmd = [
         cfg.claude_bin,
         "-p",

@@ -72,6 +72,14 @@ def _mk_config(args) -> Config:
         cfg.agent_model = args.model
     if getattr(args, "vscode", None) is not None:
         cfg.vscode = args.vscode
+    if getattr(args, "provider", None):
+        cfg.provider = args.provider
+    if getattr(args, "kimi_model", None):
+        cfg.kimi_model = args.kimi_model
+    if getattr(args, "kimi_base_url", None):
+        cfg.kimi_base_url = args.kimi_base_url
+    if getattr(args, "kimi_key", None):
+        cfg.kimi_api_key = args.kimi_key
     return cfg
 
 
@@ -102,11 +110,12 @@ def _confirm_plan(plan) -> bool:
 def _orchestrate(cfg: Config, ctx, plan) -> int:
     """Run a plan to completion, print the result + objective table."""
     policy = ApprovalPolicy(level=cfg.approval)
+    backend = f"kimi:{cfg.kimi_model}" if cfg.provider == "kimi" else f"claude:{cfg.agent_model or 'default'}"
     _print(
-        f"[dim]Running {len(plan.subtasks)} subtask(s) · concurrency={cfg.concurrency} · "
-        f"approval={policy.describe()}[/dim]"
+        f"[dim]Running {len(plan.subtasks)} subtask(s) · backend={backend} · "
+        f"concurrency={cfg.concurrency} · approval={policy.describe()}[/dim]"
         if _console
-        else f"Running {len(plan.subtasks)} subtask(s) · concurrency={cfg.concurrency}"
+        else f"Running {len(plan.subtasks)} subtask(s) · backend={backend} · concurrency={cfg.concurrency}"
     )
     report = asyncio.run(Orchestrator(cfg, policy).run(plan, ctx, mode="orchestrated"))
     _print(
@@ -258,6 +267,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--approval", help="accept_edits_allowlist | bypass | edits_no_bash")
         sp.add_argument("--model", help="Model for spawned agents (default: inherit)")
         sp.add_argument("--max-subtasks", type=int, default=6, dest="max_subtasks")
+        sp.add_argument("--provider", help="Agent backend: claude | kimi (default: kimi on this branch)")
+        sp.add_argument("--kimi-model", dest="kimi_model", help="Override KIMI_AGENT_MODEL")
+        sp.add_argument("--kimi-base-url", dest="kimi_base_url", help="Override KIMI_AGENT_BASE_URL")
+        sp.add_argument("--kimi-key", dest="kimi_key", help="Override KIMI_AGENT_API_KEY (manual)")
         sp.add_argument(
             "--vscode", dest="vscode", action="store_true", default=None,
             help="Open the live progress doc + changed files in VSCode (default: auto-detect)",

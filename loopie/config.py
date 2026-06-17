@@ -58,6 +58,23 @@ class Config:
 
     repo_root: Path
     claude_bin: str = field(default_factory=_resolve_claude_bin)
+    # Agent execution backend. "claude" = Claude Code headless; "kimi" = Moonshot /v1 loop.
+    # On the kimi branch this defaults to "kimi"; override with LOOPIE_PROVIDER or --provider.
+    provider: str = field(default_factory=lambda: os.environ.get("LOOPIE_PROVIDER", "kimi"))
+    # Kimi (Moonshot) backend — host env by default, overridable per run (manual).
+    kimi_base_url: str = field(
+        default_factory=lambda: os.environ.get("KIMI_AGENT_BASE_URL")
+        or os.environ.get("KIMI_BASE_URL")
+        or "https://api.moonshot.ai/v1"
+    )
+    kimi_model: str = field(
+        default_factory=lambda: os.environ.get("KIMI_AGENT_MODEL")
+        or os.environ.get("KIMI_MODEL")
+        or "kimi-k2.6"
+    )
+    kimi_api_key: str | None = field(
+        default_factory=lambda: os.environ.get("KIMI_AGENT_API_KEY") or os.environ.get("KIMI_API_KEY")
+    )
     # Model for spawned agents/planner; None inherits the Claude Code default.
     agent_model: str | None = field(default_factory=lambda: os.environ.get("LOOPIE_AGENT_MODEL") or None)
     planner_model: str | None = field(

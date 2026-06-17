@@ -19,6 +19,7 @@ from .approval import ApprovalPolicy
 from .config import Config
 from .context_budget import clip
 from .dashboard import Dashboard
+from .kimi_session import run_kimi_agent
 from .memory import SessionMemory
 from .planner import Plan, Subtask
 from .prompts import AGENT_SYSTEM_PREFIX, agent_prompt
@@ -102,6 +103,18 @@ class Orchestrator:
         self.cfg = cfg
         self.policy = policy
 
+    async def _backend(self, name: str, prompt: str, cwd, on_event) -> AgentResult:
+        """Dispatch to the configured agent backend (Claude Code headless or Kimi /v1)."""
+        if self.cfg.provider == "kimi":
+            return await run_kimi_agent(
+                self.cfg, self.policy, name, prompt, cwd,
+                on_event=on_event, append_system=AGENT_SYSTEM_PREFIX,
+            )
+        return await run_agent(
+            self.cfg, self.policy, name, prompt, cwd,
+            on_event=on_event, append_system=AGENT_SYSTEM_PREFIX,
+        )
+
     async def _run_subtask(
         self,
         subtask: Subtask,
@@ -123,15 +136,7 @@ class Orchestrator:
                 block += f"\n\nPrior approaches that worked here:\n{skill_hint}"
             prompt = agent_prompt(block, workspace_summary, cwd=str(wt.path))
 
-            result = await run_agent(
-                self.cfg,
-                self.policy,
-                subtask.id,
-                prompt,
-                wt.path,
-                on_event=dashboard.on_event,
-                append_system=AGENT_SYSTEM_PREFIX,
-            )
+            result = await self._backend(subtask.id, prompt, wt.path, dashboard.on_event)
             memory.append_transcript("agent", f"[{subtask.id}] {clip(result.final_text, 300)}")
 
             dashboard.set_status(subtask.id, "checking", "acceptance checks")
@@ -150,10 +155,7 @@ class Orchestrator:
                     f"Your previous attempt did not pass the acceptance checks. Output:\n"
                     f"{clip(check_out, 1500)}\n\nFix the failures and finish."
                 )
-                result = await run_agent(
-                    self.cfg, self.policy, subtask.id, retry_prompt, wt.path,
-                    on_event=dashboard.on_event, append_system=AGENT_SYSTEM_PREFIX,
-                )
+                result = await self._backend(subtask.id, retry_prompt, wt.path, dashboard.on_event)
                 accepted, check_out = await asyncio.to_thread(
                     run_checks, subtask.acceptance_checks, wt.path
                 )
