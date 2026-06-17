@@ -96,7 +96,39 @@ class WorktreeManager:
         return bool(status.strip())
 
     def commit_all(self, wt: Worktree, message: str) -> bool:
-        """Stage and commit everything in the worktree. Returns True if a commit was made."""
+        """Stage and commit everything in the worktree.
+
+        Returns True if a commit was made.
+
+        Defends against agent **branch drift**: a subtask whose task
+        requires touching git (e.g. "rebase open PR #22") may run
+        `git checkout -b pr-22-rebase` inside the worktree to do its
+        work. HEAD silently moves off `wt.branch`; any commit we then
+        make (and any subsequent merge of `wt.branch`) loses the
+        work because the agent's commits + uncommitted artifacts are
+        all sitting on a branch sidekick doesn't know about.
+
+        Before staging, we re-anchor `wt.branch` to whatever HEAD is
+        right now and check it out. This is a no-op when the agent
+        stayed on its assigned branch, and a one-shot rescue when it
+        didn't:
+
+          * commits the agent made on a side branch get absorbed
+            into `wt.branch` (they're already in the ref's history
+            via the SHA we anchor to).
+          * untracked / uncommitted artifacts in the working tree
+            stay put — the next `git add -A` picks them up.
+          * the eventual `merge_clean(wt)` then carries everything
+            up to the orchestrator's main branch.
+        """
+        current_branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], wt.path).strip()
+        if current_branch != wt.branch:
+            # Anchor wt.branch to the agent's current HEAD SHA and
+            # check it out. Uncommitted working-tree changes carry
+            # over so the next `git add -A` picks them up.
+            current_sha = _git(["rev-parse", "HEAD"], wt.path).strip()
+            _git(["checkout", "-B", wt.branch, current_sha], wt.path)
+
         if not self.has_changes(wt):
             return False
         _git(["add", "-A"], wt.path)

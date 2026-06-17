@@ -28,6 +28,55 @@ def test_worktree_create_commit_merge(tmp_path):
     assert mgr.merge_clean(wt) is True
     assert (repo / "new.py").exists()  # merged into base branch
     wt.remove()
+
+
+def test_commit_all_rescues_agent_branch_drift(tmp_path):
+    """Regression: agent does `git checkout -b side-branch` mid-task,
+    commits there, then leaves an artifact uncommitted. Without the
+    re-anchor in commit_all, the artifact lives on `side-branch` (which
+    sidekick doesn't know about), and merging the empty wt.branch
+    drops it. With the fix, wt.branch absorbs `side-branch`'s SHA and
+    the artifact is committed + merged through to base.
+
+    Concretely models the 2026-06-17 ingress-nginx PR-triage incident
+    where mod_2's `.sidekick/pr_results_mod_2.json` died because the
+    agent checked out `pr-22-rebase` to do the rebase work.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _init_repo(repo)
+    mgr = WorktreeManager(repo, tmp_path / "wts")
+    wt = mgr.create("alpha")
+
+    # Step 1: agent makes some committed work on its assigned branch.
+    (wt.path / "step1.txt").write_text("step 1 work\n")
+    subprocess.run(["git", "add", "-A"], cwd=wt.path, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "step 1 work"], cwd=wt.path, check=True)
+
+    # Step 2: agent drifts to a side branch (mimics `git fetch + checkout`
+    # of a PR head during the rebase-style subtask).
+    subprocess.run(
+        ["git", "checkout", "-q", "-b", "agent-side-branch"], cwd=wt.path, check=True,
+    )
+    (wt.path / "step2.txt").write_text("step 2 work\n")
+    subprocess.run(["git", "add", "-A"], cwd=wt.path, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "step 2 on side branch"], cwd=wt.path, check=True)
+
+    # Step 3: agent writes an artifact and leaves it UNCOMMITTED — the
+    # acceptance check sees the file, but sidekick has to capture it.
+    (wt.path / "artifact.json").write_text('{"ok": true}\n')
+
+    # Now sidekick's commit_all + merge_clean run. Both prior commits
+    # AND the uncommitted artifact must make it into the base repo.
+    assert mgr.commit_all(wt, "sidekick[alpha]: finalise") is True
+    assert mgr.merge_clean(wt) is True
+
+    assert (repo / "step1.txt").exists(), "agent's first committed work lost"
+    assert (repo / "step2.txt").exists(), "agent's side-branch commit lost"
+    assert (repo / "artifact.json").exists(), \
+        "untracked artifact lost during branch drift"
+
+    wt.remove()
     assert not wt.path.exists()
 
 
