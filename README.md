@@ -79,29 +79,55 @@ terminal) and keep `progress.md` open beside it.
 
 ## Make loopie your default coding workflow in VSCode
 
-The Claude Code **sidebar session cannot be transparently rerouted** through loopie (the
-extension runs the agent in-process; there's no supported reroute hook). What you *can* do
-is have loopie ready and waiting the moment you open a folder:
+**First, put loopie on PATH** so VSCode tasks and terminals can call it:
+```bash
+cd /path/to/loopie && uv tool install --editable .   # or: pipx install -e .
+```
 
-1. **Put loopie on PATH** (so VSCode tasks can call it):
-   ```bash
-   cd /path/to/loopie && uv tool install --editable .   # or: pipx install -e .
-   ```
-2. **Auto-launch on folder open.** Copy [`examples/vscode/tasks.json`](examples/vscode/tasks.json)
-   to `.vscode/tasks.json` in any repo. On open, VSCode starts **`loopie repl`** in a
-   dedicated terminal (it asks once to "Allow Automatic Tasks"). Type a task → loopie
-   plans → fans out auto-approved agents → merges, with `progress.md` live beside it.
-3. **Optional hotkey:** [`examples/vscode/keybindings.json`](examples/vscode/keybindings.json)
-   binds `Ctrl+Alt+L` to a "run task" prompt.
-4. **Optional terminal alias** (integrated terminal): add to `~/.bashrc`
-   ```bash
-   cc() { loopie run "$@" --yes; }   # then:  cc "add unit tests for parser.py"
-   ```
-   Safe from recursion — loopie invokes the Claude binary by its absolute
-   `$CLAUDE_CODE_EXECPATH`, never the shell `claude`.
+**The one limitation:** the Claude Code **sidebar session cannot be transparently
+rerouted** through loopie — the extension runs the agent in-process and exposes no reroute
+hook, so nothing can sit invisibly underneath it. loopie *drives* headless agents; you
+keep using the sidebar to drive loopie. With that understood, there are three usage
+patterns:
 
-Use the interactive sidebar session to *drive* loopie (e.g. ask it to run `loopie run …`),
-and let loopie own the parallel, auto-approved execution.
+### Pattern A — auto-launch `loopie repl` on folder open (the "default workflow")
+Copy [`examples/vscode/tasks.json`](examples/vscode/tasks.json) → `.vscode/tasks.json` in
+any repo. Opening the folder auto-starts **`loopie repl`** in a dedicated terminal (VSCode
+asks once to "Allow Automatic Tasks"). Then, every time:
+```
+loopie> add input validation to the upload handler
+```
+→ loopie plans → fans out auto-approved agents on worktrees → merges green branches, with
+`progress.md` live in an editor tab beside you. This is the closest thing to "VSCode always
+runs through loopie."
+
+### Pattern B — drive loopie from the sidebar session
+Use the interactive Claude Code sidebar normally; when a task wants parallel fan-out, tell
+it to run loopie, e.g. *"run `loopie run "refactor X across these 4 modules" --yes`"*. The
+sidebar stays your control surface; loopie owns the parallel execution and reports back via
+`progress.md` + opened diffs.
+
+### Pattern C — terminal one-liners / hotkey
+- Integrated-terminal alias (add to `~/.bashrc`):
+  ```bash
+  cc() { loopie run "$@" --yes; }   # then:  cc "add unit tests for parser.py"
+  ```
+  Recursion-safe — loopie invokes the Claude binary by its absolute `$CLAUDE_CODE_EXECPATH`,
+  never the shell `claude`.
+- Hotkey: [`examples/vscode/keybindings.json`](examples/vscode/keybindings.json) binds
+  `Ctrl+Alt+L` to a "run task" prompt (uses the second task in `tasks.json`).
+
+### What you see in the editor
+| Surface | When | Where |
+|---------|------|-------|
+| Live `progress.md` (per-agent table) | during the run | editor tab, auto-reloads |
+| `rich` dashboard | during the run | the `loopie` terminal |
+| Changed files of each accepted subtask | on completion | opened for review |
+| Objective table (S1–S4 / A1–A4 / E1–E2) | on completion | the `loopie` terminal |
+
+Toggle the editor integration with `--vscode` / `--no-vscode` or `LOOPIE_VSCODE=1|0`
+(auto-detected from the `code` CLI). A per-agent VSCode **window** on each worktree is not
+opened by default — set it up with a `code <worktree>` step if you want one window per agent.
 
 ## Usage
 
