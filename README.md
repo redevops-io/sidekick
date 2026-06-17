@@ -224,3 +224,56 @@ this table.
 - Auth via the running Claude Code session's credentials (or `ANTHROPIC_API_KEY`).
 - *Optional:* the VSCode `code` CLI for the in-editor progress doc + diffs (auto-detected;
   sidekick runs fine without it).
+
+## Delegation from another Claude Code session
+
+`sidekick` can be invoked **from inside another Claude Code session** so the
+parent session never spends its own context on the work. On this `kimi` branch
+the spawned sub-agents are Kimi (Moonshot `/v1`) sessions by default; the
+parent Claude Code session shells out via a single CLI call and parses a JSON
+envelope back.
+
+Two pieces:
+
+1. **Install once, globally**:
+
+   ```bash
+   uv tool install /mnt/backup/projects/sidekick
+   ```
+
+   Puts `sidekick` on `PATH` for every shell — every Claude Code session
+   (current or future) can shell out to it. Rerun with `--reinstall` after
+   pulling new changes:
+
+   ```bash
+   uv tool install --reinstall /mnt/backup/projects/sidekick
+   ```
+
+2. **The user-level skill** at `~/.claude/skills/delegate-to-sidekick/SKILL.md`
+   (canonical copy in this branch at `examples/delegate-to-sidekick.SKILL.md`)
+   teaches any Claude Code session **when** to delegate, **how** to invoke,
+   and **what envelope** to expect. Auto-discovered by Claude Code via the
+   `~/.claude/skills/` user-skills dir — the parent session will see
+   `delegate-to-sidekick` in its available-skills list and call it via the
+   `Skill` tool.
+
+The contract is one command (the parent session runs it via Bash):
+
+```bash
+sidekick --repo /abs/path/to/repo run "<task>" --json --no-vscode
+```
+
+- `--json` emits a single envelope on stdout, schema_version=1 (docs in the
+  SKILL.md). Implies `--yes`. Without this, sidekick spawns a `rich` UI that's
+  unparseable from a sub-session.
+- `--no-vscode` keeps the live progress doc from popping a window into the
+  parent's IDE.
+
+The envelope carries `ok`, `n_accepted/n_total`, `n_merged`, the `backend` used
+(`kimi:<model>` or `claude:<model>` per the per-run `--provider` choice),
+per-subtask `branch`, and the last 2 KB of each acceptance check's transcript.
+Enough for the parent to summarize and decide whether to follow up.
+
+On this branch the default backend is Kimi (Moonshot); pass `--provider claude`
+to delegate to native Claude Code sub-agents instead. Either way the envelope
+shape is identical — only the `backend` field changes.

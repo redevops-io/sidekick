@@ -107,17 +107,66 @@ def _confirm_plan(plan) -> bool:
     return resp in ("", "y", "yes")
 
 
-def _orchestrate(cfg: Config, ctx, plan) -> int:
-    """Run a plan to completion, print the result + objective table."""
+def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
+    """Run a plan to completion, print the result + objective table.
+
+    When `emit_json=True`, replaces the human-friendly output with a
+    single JSON envelope on stdout — suitable for callers (e.g. another
+    Claude Code session that delegated to sidekick via `sidekick run
+    --json`) that need to parse the outcome programmatically.
+    """
     policy = ApprovalPolicy(level=cfg.approval)
     backend = f"kimi:{cfg.kimi_model}" if cfg.provider == "kimi" else f"claude:{cfg.agent_model or 'default'}"
-    _print(
-        f"[dim]Running {len(plan.subtasks)} subtask(s) · backend={backend} · "
-        f"concurrency={cfg.concurrency} · approval={policy.describe()}[/dim]"
-        if _console
-        else f"Running {len(plan.subtasks)} subtask(s) · backend={backend} · concurrency={cfg.concurrency}"
-    )
+    if not emit_json:
+        _print(
+            f"[dim]Running {len(plan.subtasks)} subtask(s) · backend={backend} · "
+            f"concurrency={cfg.concurrency} · approval={policy.describe()}[/dim]"
+            if _console
+            else f"Running {len(plan.subtasks)} subtask(s) · backend={backend} · concurrency={cfg.concurrency}"
+        )
     report = asyncio.run(Orchestrator(cfg, policy).run(plan, ctx, mode="orchestrated"))
+    exit_code = 0 if report.n_accepted == len(report.outcomes) else 2
+
+    if emit_json:
+        # Single JSON object on stdout. Stable; documented in
+        # examples/delegate-to-sidekick.SKILL.md — please keep
+        # backwards-compatible. The shape matches the `claude` branch's
+        # envelope; the `backend` field tells the caller which sub-agent
+        # runtime was actually used (kimi vs claude).
+        envelope = {
+            "schema_version": 1,
+            "ok": exit_code == 0,
+            "exit_code": exit_code,
+            "task": report.task,
+            "run_id": report.run_id,
+            "repo_root": str(cfg.repo_root),
+            "wall_ms": report.wall_ms,
+            "concurrency": cfg.concurrency,
+            "approval": policy.describe(),
+            "backend": backend,
+            "n_accepted": report.n_accepted,
+            "n_total": len(report.outcomes),
+            "n_merged": report.n_merged,
+            "progress_path": report.progress_path or None,
+            "outcomes": [
+                {
+                    "subtask_id":  o.subtask.id,
+                    "title":       o.subtask.title,
+                    "deps":        list(o.subtask.deps),
+                    "branch":      o.branch,
+                    "accepted":    o.accepted,
+                    "first_attempt": o.first_attempt,
+                    "attempts":    o.attempts,
+                    "merged":      o.merged,
+                    "merge_attempted": o.merge_attempted,
+                    "check_output_tail": (o.check_output[-2000:] if o.check_output else ""),
+                }
+                for o in report.outcomes
+            ],
+        }
+        print(json.dumps(envelope, indent=2))
+        return exit_code
+
     _print(
         f"\n[bold]Done:[/bold] {report.n_accepted}/{len(report.outcomes)} accepted, "
         f"{report.n_merged} merged, wall {report.wall_ms/1000:.1f}s"
@@ -135,24 +184,28 @@ def _orchestrate(cfg: Config, ctx, plan) -> int:
             else f"progress: {report.progress_path}"
         )
     render_objectives(M.compute(M.load(cfg.metrics_path)))
-    return 0 if report.n_accepted == len(report.outcomes) else 2
+    return exit_code
 
 
 def cmd_run(args) -> int:
     cfg = _mk_config(args)
     ctx = gather(cfg.repo_root)
+    emit_json = bool(getattr(args, "json", False))
     if args.plan_file:
         plan = load_plan(Path(args.plan_file))
     else:
-        _print("[dim]planning…[/dim]" if _console else "planning…")
+        if not emit_json:
+            _print("[dim]planning…[/dim]" if _console else "planning…")
         plan = make_plan(cfg, ctx, args.task, max_subtasks=args.max_subtasks)
     cfg.ensure_dirs()
     save_plan(plan, cfg.state_dir / "last_plan.json")
 
-    if not args.yes and not _confirm_plan(plan):
+    # --json implies --yes: the caller is non-interactive and can't
+    # answer a confirmation prompt. Skip _confirm_plan entirely.
+    if not (args.yes or emit_json) and not _confirm_plan(plan):
         _print("Aborted.")
         return 1
-    return _orchestrate(cfg, ctx, plan)
+    return _orchestrate(cfg, ctx, plan, emit_json=emit_json)
 
 
 def cmd_repl(args) -> int:
@@ -284,6 +337,14 @@ def build_parser() -> argparse.ArgumentParser:
     rp.add_argument("task", nargs="?", default="", help="High-level task")
     rp.add_argument("--plan-file", help="Run a saved plan JSON instead of planning")
     rp.add_argument("-y", "--yes", action="store_true", help="Skip plan confirmation")
+    rp.add_argument(
+        "--json", action="store_true", dest="json",
+        help="Emit a single JSON envelope on stdout instead of human-friendly "
+             "output. Implies --yes. Intended for non-interactive callers — "
+             "another Claude Code session, CI, scripted delegation. The "
+             "envelope shape is documented in examples/delegate-to-sidekick.SKILL.md "
+             "(schema_version 1).",
+    )
     add_agent_opts(rp)
     rp.set_defaults(func=cmd_run)
 
