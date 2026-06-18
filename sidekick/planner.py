@@ -117,7 +117,7 @@ def make_plan(cfg: Config, ctx: RepoContext, task: str, max_subtasks: int = 6) -
     """Produce a Plan by querying the configured provider; fall back to a single subtask."""
     prompt = planner_prompt(task, ctx.render(), max_subtasks)
 
-    if getattr(cfg, "provider", "claude") == "kimi":
+    if getattr(cfg, "provider", "claude") != "claude":
         from .kimi_session import KimiError, kimi_complete
 
         try:

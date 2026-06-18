@@ -58,20 +58,35 @@ class Config:
 
     repo_root: Path
     claude_bin: str = field(default_factory=_resolve_claude_bin)
-    # Agent execution backend. "claude" = Claude Code headless; "kimi" = Moonshot /v1 loop.
-    # On the kimi branch this defaults to "kimi"; override with SIDEKICK_PROVIDER or --provider.
-    provider: str = field(default_factory=lambda: os.environ.get("SIDEKICK_PROVIDER", "openai"))
-    # Kimi (Moonshot) backend — host env by default, overridable per run (manual).
-    openai_base_url: str = field(
-        default_factory=lambda: os.environ.get("SIDEKICK_AGENT_BASE_URL") or os.environ.get("OPENAI_BASE_URL")
-        or "https://api.openai.com/v1"
+    # Agent execution backend. "claude" = Claude Code headless; "selfhosted" = a local
+    # OpenAI-compatible server (vLLM / llama.cpp) over /v1. On this `selfhosted` branch the
+    # default is "selfhosted"; override with SIDEKICK_PROVIDER or --provider.
+    provider: str = field(default_factory=lambda: os.environ.get("SIDEKICK_PROVIDER", "selfhosted"))
+    # Self-hosted backend — a local vLLM (or llama.cpp) server exposing the OpenAI /v1 API.
+    # Defaults target a vLLM instance on the local evo-x2 (Strix Halo) box; no cloud key.
+    # NB: deliberately does NOT fall back to OPENAI_BASE_URL / OPENAI_API_KEY. This branch
+    # is local-by-default — a stray cloud key in the host env must never silently reroute
+    # inference (and cost) off the evo-x2 box. Override only via the explicit vars below.
+    vllm_base_url: str = field(
+        default_factory=lambda: os.environ.get("SIDEKICK_AGENT_BASE_URL")
+        or os.environ.get("VLLM_BASE_URL")
+        or "http://localhost:8000/v1"
     )
-    openai_model: str = field(
-        default_factory=lambda: os.environ.get("SIDEKICK_AGENT_MODEL_NAME") or os.environ.get("OPENAI_MODEL")
-        or "gpt-5"
+    vllm_model: str = field(
+        default_factory=lambda: os.environ.get("SIDEKICK_AGENT_MODEL_NAME")
+        or os.environ.get("VLLM_MODEL")
+        or "Qwen3.5-122B-A10B"
     )
-    openai_api_key: str | None = field(
-        default_factory=lambda: os.environ.get("OPENAI_API_KEY")
+    # Local servers are keyless; the OpenAI wire format still wants a non-empty bearer, so
+    # default to the conventional "EMPTY" sentinel. Set VLLM_API_KEY only if you front the
+    # server with an auth proxy.
+    vllm_api_key: str | None = field(
+        default_factory=lambda: os.environ.get("VLLM_API_KEY") or "EMPTY"
+    )
+    # Sampling temperature for the agentic loop. Lower is steadier for merge/refactor work;
+    # override with VLLM_TEMPERATURE.
+    vllm_temperature: float = field(
+        default_factory=lambda: float(os.environ.get("VLLM_TEMPERATURE", "0.2"))
     )
     # Model for spawned agents/planner; None inherits the Claude Code default.
     agent_model: str | None = field(default_factory=lambda: os.environ.get("SIDEKICK_AGENT_MODEL") or None)
@@ -95,7 +110,7 @@ class Config:
     # Where sidekick stores run state, worktrees, metrics, memory, skills.
     state_dirname: str = field(
         default_factory=lambda: os.environ.get("SIDEKICK_STATE_DIR")
-        or ".sidekick-openai"
+        or ".sidekick-selfhosted"
     )
 
     def __post_init__(self) -> None:

@@ -104,8 +104,9 @@ class Orchestrator:
         self.policy = policy
 
     async def _backend(self, name: str, prompt: str, cwd, on_event) -> AgentResult:
-        """Dispatch to the configured agent backend (Claude Code headless or Kimi /v1)."""
-        if self.cfg.provider == "openai":
+        """Dispatch to the configured agent backend (Claude Code headless, or a local
+        OpenAI-compatible /v1 server for the `selfhosted` provider)."""
+        if self.cfg.provider != "claude":
             return await run_kimi_agent(
                 self.cfg, self.policy, name, prompt, cwd,
                 on_event=on_event, append_system=AGENT_SYSTEM_PREFIX,

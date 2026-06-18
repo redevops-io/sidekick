@@ -74,44 +74,43 @@ def _mk_config(args) -> Config:
         cfg.vscode = args.vscode
     if getattr(args, "provider", None):
         cfg.provider = args.provider
-    if getattr(args, "openai_model", None):
-        cfg.openai_model = args.openai_model
-    if getattr(args, "openai_base_url", None):
-        cfg.openai_base_url = args.openai_base_url
-    if getattr(args, "openai_key", None):
-        cfg.openai_api_key = args.openai_key
+    if getattr(args, "vllm_model", None):
+        cfg.vllm_model = args.vllm_model
+    if getattr(args, "vllm_base_url", None):
+        cfg.vllm_base_url = args.vllm_base_url
+    if getattr(args, "vllm_key", None):
+        cfg.vllm_api_key = args.vllm_key
     return cfg
 
 
 
 
-def _ensure_api_key_or_prompt(cfg) -> None:
-    """If cfg.openai_api_key is unset, prompt for one (TTY) or fail
-    fast with a clear message (non-TTY).
+def _ensure_endpoint_reachable(cfg) -> None:
+    """Warn (don't fail) if the local self-hosted server isn't answering.
 
-    Without a key, the openai `/v1` agentic loop can't authenticate.
-    For non-interactive callers (e.g. `--json`, CI), we don't want a
-    blocking prompt — surface a clear error and exit 2 so the parent
-    can react. For interactive humans, accept the key once per run
-    (held in memory; not persisted)."""
-    if cfg.openai_api_key:
+    The `selfhosted` backend talks to a *local* OpenAI-compatible server (vLLM / llama.cpp)
+    — no cloud key. The common failure is simply that the server on the evo-x2 box isn't up
+    yet, so we do a quick liveness probe of `GET {base_url}/models` and print an actionable
+    hint. We never exit here: the probe may be blocked (firewall/proxy) while the actual
+    chat call still succeeds, and offline planning falls back gracefully."""
+    if cfg.provider == "claude":
         return
-    if not sys.stdin.isatty():
-        _print(
-            f"error: OPENAI_API_KEY is unset and stdin is not a tty — provide "
-            f"it via env (or --openai-key) before running with --json."
-        )
-        sys.exit(2)
+    import urllib.error
+    import urllib.request
+
+    url = f"{cfg.vllm_base_url.rstrip('/')}/models"
+    req = urllib.request.Request(
+        url, headers={"Authorization": f"Bearer {cfg.vllm_api_key}"}, method="GET"
+    )
     try:
-        import getpass
-        key = getpass.getpass(f"OPENAI_API_KEY (input hidden, single-run use): ").strip()
-    except (EOFError, KeyboardInterrupt):
-        _print("aborted: no key provided.")
-        sys.exit(1)
-    if not key:
-        _print("aborted: empty key.")
-        sys.exit(1)
-    cfg.openai_api_key = key
+        with urllib.request.urlopen(req, timeout=3):
+            return
+    except (urllib.error.URLError, OSError) as e:
+        _print(
+            f"[warn] self-hosted server not reachable at {cfg.vllm_base_url} ({e}).\n"
+            f"       Start it on the evo-x2 box, e.g.:  just -f scripts/serve_vllm.justfile serve\n"
+            f"       or point elsewhere with --vllm-base-url / VLLM_BASE_URL. Continuing anyway."
+        )
 
 
 def cmd_plan(args) -> int:
@@ -147,7 +146,7 @@ def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
     --json`) that need to parse the outcome programmatically.
     """
     policy = ApprovalPolicy(level=cfg.approval)
-    backend = f"openai:{cfg.openai_model}" if cfg.provider == "openai" else f"claude:{cfg.agent_model or 'default'}"
+    backend = f"{cfg.provider}:{cfg.vllm_model}" if cfg.provider != "claude" else f"claude:{cfg.agent_model or 'default'}"
     if not emit_json:
         _print(
             f"[dim]Running {len(plan.subtasks)} subtask(s) · backend={backend} · "
@@ -163,7 +162,7 @@ def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
         # examples/delegate-to-sidekick.SKILL.md — please keep
         # backwards-compatible. The shape matches the `claude` branch's
         # envelope; the `backend` field tells the caller which sub-agent
-        # runtime was actually used (openai vs claude).
+        # runtime was actually used (selfhosted vs claude).
         envelope = {
             "schema_version": 1,
             "ok": exit_code == 0,
@@ -220,7 +219,7 @@ def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
 
 def cmd_run(args) -> int:
     cfg = _mk_config(args)
-    _ensure_api_key_or_prompt(cfg)
+    _ensure_endpoint_reachable(cfg)
     ctx = gather(cfg.repo_root)
     emit_json = bool(getattr(args, "json", False))
     if args.plan_file:
@@ -300,7 +299,7 @@ def _capture_task_voice(seconds: int | None) -> str | None:
 
 def cmd_voice(args) -> int:
     cfg = _mk_config(args)
-    _ensure_api_key_or_prompt(cfg)
+    _ensure_endpoint_reachable(cfg)
     cfg.ensure_dirs()
     task = _capture_task_voice(args.seconds)
     if not task:
@@ -353,10 +352,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--approval", help="accept_edits_allowlist | bypass | edits_no_bash")
         sp.add_argument("--model", help="Model for spawned agents (default: inherit)")
         sp.add_argument("--max-subtasks", type=int, default=6, dest="max_subtasks")
-        sp.add_argument("--provider", help="Agent backend: claude | openai (default: openai on this branch)")
-        sp.add_argument("--openai-model", dest="openai_model", help="Override OPENAI_MODEL (or SIDEKICK_AGENT_MODEL_NAME)")
-        sp.add_argument("--openai-base-url", dest="openai_base_url", help="Override OPENAI_BASE_URL (or SIDEKICK_AGENT_BASE_URL)")
-        sp.add_argument("--openai-key", dest="openai_key", help="Override OPENAI_API_KEY (manual)")
+        sp.add_argument("--provider", help="Agent backend: claude | selfhosted (default: selfhosted on this branch)")
+        sp.add_argument("--vllm-model", dest="vllm_model", help="Served model name (or VLLM_MODEL / SIDEKICK_AGENT_MODEL_NAME)")
+        sp.add_argument("--vllm-base-url", dest="vllm_base_url", help="Local /v1 endpoint (or VLLM_BASE_URL / SIDEKICK_AGENT_BASE_URL)")
+        sp.add_argument("--vllm-key", dest="vllm_key", help="Bearer for an auth-fronted server (default: EMPTY)")
         sp.add_argument(
             "--vscode", dest="vscode", action="store_true", default=None,
             help="Open the live progress doc + changed files in VSCode (default: auto-detect)",

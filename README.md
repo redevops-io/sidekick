@@ -4,8 +4,8 @@ A **local coding-agent orchestrator**. Give it a high-level task and it:
 
 1. decomposes the task into a **DAG of subtasks**,
 2. fans out one **auto-approved, headless coding agent per subtask** (Claude Code or — on
-   this `kimi` branch by default — Kimi via Moonshot `/v1`), each isolated on its own
-   **git worktree/branch**,
+   this `selfhosted` branch by default — a **local vLLM/llama.cpp** server over OpenAI
+   `/v1`), each isolated on its own **git worktree/branch**,
 3. shows **live progress** — both a terminal `rich` table and a live `progress.md`
    document that opens in **VSCode** and auto-reloads as agents work,
 4. runs each subtask's **acceptance checks** (retrying once on failure),
@@ -31,7 +31,7 @@ significant deviations.
 | `repo_context.py` | workspace summary (branch, tree, docs) | Raschka #1 |
 | `prompts/` | stable system prefix + dynamic suffix for cache reuse | Raschka #2 |
 | `agent_session.py` + `approval.py` | headless `claude -p` wrapper, auto-approval policy | Raschka #3 |
-| `kimi_session.py` | native Kimi (Moonshot) `/v1` agentic tool loop | Raschka #3 / Hermes |
+| `kimi_session.py` | OpenAI-compatible `/v1` agentic tool loop (here: local vLLM/llama.cpp) | Raschka #3 / Hermes |
 | `context_budget.py` | output clipping + tiered transcript reduction | Raschka #4 |
 | `memory.py` | transcript + working memory as JSON on disk | Raschka #5 |
 | `orchestrator.py` | DAG waves, bounded parallel agents, merge | Raschka #6 / Hermes |
@@ -61,38 +61,71 @@ Each session runs inside its own worktree, so parallel agents never collide.
 Three approval levels (`--approval`): `accept_edits_allowlist` (default), `bypass`
 (`--allow-dangerously-skip-permissions`), `edits_no_bash`.
 
-## Provider backends (this is the `kimi` branch)
+## Provider backends (this is the `selfhosted` branch)
 
 sidekick supports pluggable agent execution backends, selected by `--provider` (or
-`SIDEKICK_PROVIDER`). **On the `kimi` branch the default is `kimi`** — both task *planning*
-and agent *execution* run on Moonshot's Kimi via the OpenAI-compatible `/v1` API, through a
-self-contained agentic tool loop (`read_file`/`write_file`/`edit_file`/`list_dir`/`run_bash`/
-`finish`), reusing sidekick's worktrees, auto-approval, dashboard, metrics, and merge.
+`SIDEKICK_PROVIDER`). **On the `selfhosted` branch the default is `selfhosted`** — both task
+*planning* and agent *execution* run on a **local OpenAI-compatible server** (vLLM or
+llama.cpp) on the **evo-x2 (Strix Halo)** box, through a self-contained agentic tool loop
+(`read_file`/`write_file`/`edit_file`/`list_dir`/`run_bash`/`finish`), reusing sidekick's
+worktrees, auto-approval, dashboard, metrics, and merge. **No cloud key; no tokens leave the
+machine.** The default model is `mradermacher/Qwen3.5-122B-A10B-GGUF` (q4) — a ~122B MoE
+(~10B active) that fits comfortably in the box's 96 GB unified VRAM.
 
-Credentials are read from the **host environment by default**, or provided **manually** per
-run:
+Everything defaults to a local server on `:8000`, so in the common case you set **nothing**:
 
-| Var (host default) | Manual override | Default |
-|--------------------|-----------------|---------|
-| `KIMI_AGENT_BASE_URL` | `--kimi-base-url` | `https://api.moonshot.ai/v1` |
-| `KIMI_AGENT_MODEL` | `--kimi-model` | `kimi-k2.7-code` |
-| `KIMI_AGENT_API_KEY` | `--kimi-key` | — (required) |
-| `SIDEKICK_PROVIDER` | `--provider` | `kimi` |
+| Var | `--flag` | Default |
+|-----|----------|---------|
+| `VLLM_BASE_URL` (or `SIDEKICK_AGENT_BASE_URL`) | `--vllm-base-url` | `http://localhost:8000/v1` |
+| `VLLM_MODEL` (or `SIDEKICK_AGENT_MODEL_NAME`) | `--vllm-model` | `Qwen3.5-122B-A10B` |
+| `VLLM_API_KEY` | `--vllm-key` | `EMPTY` (local servers are keyless) |
+| `VLLM_TEMPERATURE` | — | `0.2` (steady for merges/refactors) |
+| `SIDEKICK_PROVIDER` | `--provider` | `selfhosted` |
+
+> The defaults deliberately do **not** fall back to `OPENAI_BASE_URL` / `OPENAI_API_KEY`, so
+> a stray cloud key in your shell can never silently reroute inference off the local box.
+
+### Serving the model on the evo-x2
 
 ```bash
-sidekick run "add input validation" --yes                 # uses Kimi (host env)
-sidekick run "..." --provider claude                       # fall back to Claude Code
-sidekick run "..." --kimi-model kimi-k2.7-code --kimi-key sk-…  # manual creds
+just -f scripts/serve_vllm.justfile fetch           # download the q4 GGUF
+just -f scripts/serve_vllm.justfile serve-llamacpp   # recommended on Strix Halo
+# just -f scripts/serve_vllm.justfile serve-vllm     # the literal vLLM path (see caveat)
+just -f scripts/serve_vllm.justfile health           # GET /v1/models
+```
+
+**vLLM vs llama.cpp on Strix Halo.** vLLM's GGUF support is *experimental* and CUDA-first;
+GGUF + MoE on AMD ROCm may be unsupported or slow. The justfile ships both recipes: the
+**llama.cpp** server (`serve-llamacpp`) is the recommended runtime for GGUF on this hardware,
+while `serve-vllm` is provided as literally requested. **Both expose the same OpenAI `/v1`
+API**, so sidekick's backend is identical either way — only the launch command differs.
+
+```bash
+sidekick run "add input validation" --yes            # uses the local model (defaults)
+sidekick run "..." --provider claude                  # fall back to Claude Code headless
+sidekick run "..." --vllm-base-url http://otherbox:8000/v1   # server on another host
 ```
 
 Notes:
-- `kimi-k2.x` are **reasoning models**: sidekick sends `temperature=1` (the only value they
-  accept) and they think before acting, so planning/first-token latency is higher than
-  Claude's but token cost per subtask is markedly lower.
 - The same auto-approval policy applies: edits are auto-approved; `run_bash` is gated to
   the scoped allowlist (or disabled under `edits_no_bash`, unrestricted under `bypass`).
 - Branch model: shared features (voice, orchestration, metrics) live on `claude` and merge
-  into provider branches; `openai`/`grok` branches follow the same pattern via their keys.
+  into provider branches; `kimi`/`openai`/`grok`/`selfhosted` follow the same pattern,
+  differing only in the `/v1` endpoint and model they point at.
+
+## Primary task: keep the LibreChat fork merged with upstream
+
+The reason this branch exists: drive the **upstream merge of
+[danny-avila/LibreChat](https://github.com/danny-avila/LibreChat) into the
+[arybach/LibreChat](https://github.com/arybach/LibreChat) fork**, preserving the fork's
+self-hosted-model config and `search-aggregator/` subsystem — entirely with the local model.
+See [`examples/merge-librechat-upstream/`](examples/merge-librechat-upstream/):
+
+```bash
+just -f scripts/serve_vllm.justfile serve-llamacpp    # 1. model up on the evo-x2
+uv tool install /mnt/backup/projects/sidekick          # 2. sidekick on PATH
+examples/merge-librechat-upstream/run.sh               # 3. fetch → merge → agents resolve
+```
 
 ## Showing progress in VSCode
 
@@ -228,10 +261,10 @@ this table.
 ## Delegation from another Claude Code session
 
 `sidekick` can be invoked **from inside another Claude Code session** so the
-parent session never spends its own context on the work. On this `kimi` branch
-the spawned sub-agents are Kimi (Moonshot `/v1`) sessions by default; the
-parent Claude Code session shells out via a single CLI call and parses a JSON
-envelope back.
+parent session never spends its own context on the work. On this `selfhosted`
+branch the spawned sub-agents run on the local model (vLLM/llama.cpp `/v1`) by
+default; the parent Claude Code session shells out via a single CLI call and
+parses a JSON envelope back.
 
 Two pieces:
 
@@ -270,10 +303,10 @@ sidekick --repo /abs/path/to/repo run "<task>" --json --no-vscode
   parent's IDE.
 
 The envelope carries `ok`, `n_accepted/n_total`, `n_merged`, the `backend` used
-(`kimi:<model>` or `claude:<model>` per the per-run `--provider` choice),
+(`selfhosted:<model>` or `claude:<model>` per the per-run `--provider` choice),
 per-subtask `branch`, and the last 2 KB of each acceptance check's transcript.
 Enough for the parent to summarize and decide whether to follow up.
 
-On this branch the default backend is Kimi (Moonshot); pass `--provider claude`
-to delegate to native Claude Code sub-agents instead. Either way the envelope
-shape is identical — only the `backend` field changes.
+On this branch the default backend is the local self-hosted model (vLLM/llama.cpp);
+pass `--provider claude` to delegate to native Claude Code sub-agents instead. Either way
+the envelope shape is identical — only the `backend` field changes.
