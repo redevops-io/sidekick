@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 import time
 import urllib.error
@@ -129,8 +130,13 @@ def _dispatch_tool(name: str, args: dict, cwd: Path, policy: ApprovalPolicy) -> 
         if not policy.requires_dangerous_flag:  # allowlist mode → enforce prefixes
             if not any(cmd.strip().startswith(pre) for pre in _bash_prefixes()):
                 return f"error: command not on the auto-approve allowlist: {clip(cmd, 80)}"
+        # Build/install commands (npm ci, turbo build, large test suites) legitimately run
+        # for many minutes; cap generously and allow override via SIDEKICK_BASH_TIMEOUT.
+        bash_timeout = int(os.environ.get("SIDEKICK_BASH_TIMEOUT", "1800"))
         try:
-            proc = subprocess.run(cmd, cwd=str(cwd), shell=True, capture_output=True, text=True, timeout=300)
+            proc = subprocess.run(
+                cmd, cwd=str(cwd), shell=True, capture_output=True, text=True, timeout=bash_timeout
+            )
         except (OSError, subprocess.SubprocessError) as e:
             return f"error running command: {e}"
         return clip(f"[exit {proc.returncode}]\n{proc.stdout}{proc.stderr}", 4000)
