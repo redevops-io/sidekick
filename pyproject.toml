@@ -1,6 +1,7 @@
 [project]
 name = "sidekick"
 version = "0.1.0"
+license = "AGPL-3.0-or-later"
 description = "Local coding-agent orchestrator: fan out auto-approved Claude Code sessions across git worktrees with live progress and measured speed/accuracy objectives."
 requires-python = ">=3.12"
 dependencies = [
