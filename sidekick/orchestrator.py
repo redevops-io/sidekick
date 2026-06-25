@@ -99,9 +99,12 @@ def run_checks(checks: list[str], cwd: Path, timeout: int = 600) -> tuple[bool, 
 
 
 class Orchestrator:
-    def __init__(self, cfg: Config, policy: ApprovalPolicy):
+    def __init__(self, cfg: Config, policy: ApprovalPolicy, notifier=None):
         self.cfg = cfg
         self.policy = policy
+        # Optional channels.Notifier — pushes run lifecycle events to chat. Best-effort:
+        # a None notifier (or a failing channel) never affects the run.
+        self.notifier = notifier
 
     async def _backend(self, name: str, prompt: str, cwd, on_event) -> AgentResult:
         """Dispatch to the configured agent backend (Claude Code headless, or a local
@@ -211,12 +214,27 @@ class Orchestrator:
             dashboard.finalize()  # write the initial doc before opening it
             vscode.open_file(progress_path)
 
+        def _notify(method: str, *args) -> None:
+            if self.notifier is None:
+                return
+            try:
+                getattr(self.notifier, method)(*args)
+            except Exception:  # noqa: BLE001 — notifications never affect the run
+                pass
+
         def _merge_outcome(o: SubtaskOutcome) -> None:
             o.merge_attempted = o.accepted
             if o.accepted:
                 o.merged = _commit_and_merge(manager, o)
                 memory.working.done_subtasks.append(o.subtask.id)
             report.outcomes.append(o)
+            _notify("subtask_done", o.subtask.id, o.accepted, o.merged, o.attempts)
+
+        backend = (
+            f"{cfg.provider}:{cfg.vllm_model}" if cfg.provider != "claude"
+            else f"claude:{cfg.agent_model or 'default'}"
+        )
+        _notify("run_started", plan.task, len(plan.subtasks), backend)
 
         # Background subagents (Hermes 0.17): launched up-front and run asynchronously
         # alongside the foreground dependency waves; joined + merged after the waves.
@@ -250,6 +268,10 @@ class Orchestrator:
 
         report.wall_ms = int((time.monotonic() - wall_start) * 1000)
         memory.save_working()
+        _notify(
+            "run_finished", plan.task, report.n_accepted, len(report.outcomes),
+            report.n_merged, report.wall_ms,
+        )
 
         # Final progress footer + surface the changed files in VSCode for review.
         footer = (

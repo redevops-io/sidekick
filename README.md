@@ -222,6 +222,45 @@ it is provider-independent from the coding model (shared by the `claude`, `kimi`
 Requires `ffmpeg` or `arecord` plus an STT key; degrades gracefully with a clear message
 if either is missing.
 
+## Communication channels (ported from Hermes 0.17)
+
+sidekick can talk over messaging platforms — **Telegram, Slack, WhatsApp, iMessage** — two
+ways. Adapters are dependency-free (stdlib `urllib` / `http.server`), so the whole feature
+runs on a $5 VPS.
+
+**Outbound (notify)** — push run start / per-subtask / result to chat:
+
+```bash
+export SIDEKICK_TELEGRAM_TOKEN=123:abc SIDEKICK_TELEGRAM_CHAT_ID=42
+sidekick run "add input validation" --notify              # all configured channels
+sidekick run "…" --notify --channels telegram,slack       # a subset
+```
+
+**Inbound (gateway)** — send a coding task *from* chat; sidekick plans, fans out, merges,
+and replies with the result:
+
+```bash
+sidekick gateway                       # long-running daemon over every configured channel
+```
+
+| Channel | Outbound | Inbound | Self-hostable? | Key env |
+|---------|----------|---------|----------------|---------|
+| **Telegram** | ✅ `sendMessage` | ✅ long-poll `getUpdates` (no public URL) | ✅ fully | `SIDEKICK_TELEGRAM_TOKEN`, `SIDEKICK_TELEGRAM_CHAT_ID` |
+| **Slack** | ✅ `chat.postMessage` | ✅ Events API webhook | ✅ (needs reachable webhook) | `SIDEKICK_SLACK_BOT_TOKEN`, `SIDEKICK_SLACK_CHANNEL` |
+| **WhatsApp** | ✅ Cloud API | ✅ Meta webhook (`hub.challenge`) | ⚠️ needs Meta Business acct + public URL | `SIDEKICK_WHATSAPP_TOKEN`, `SIDEKICK_WHATSAPP_PHONE_ID`, `SIDEKICK_WHATSAPP_VERIFY_TOKEN` |
+| **iMessage** | ✅ relay command | ✅ relay inbox file | ⚠️ needs a Mac relay (BlueBubbles/AppleScript) | `SIDEKICK_IMESSAGE_SEND_CMD`, `SIDEKICK_IMESSAGE_INBOX` |
+
+Slack/WhatsApp use webhooks, so the gateway also starts a small HTTP server
+(`--http-host`/`--http-port`, default `0.0.0.0:8787`) to receive callbacks; Telegram and
+iMessage are polled and need no inbound port.
+
+**Safety.** Inbound messages trigger *auto-approved* coding runs, so the gateway is **closed
+by default**: it acts only on senders listed in `SIDEKICK_GATEWAY_ALLOW` (comma-separated
+handles). Set `SIDEKICK_GATEWAY_OPEN=1` to accept anyone — only on a trusted, private box.
+
+`SIDEKICK_CHANNELS` (comma-separated) selects which adapters to load; unset = all that have
+credentials present. A channel missing its tokens is silently skipped.
+
 ## Usage
 
 ```bash

@@ -137,7 +137,29 @@ def _confirm_plan(plan) -> bool:
     return resp in ("", "y", "yes")
 
 
-def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
+def _build_notifier(args):
+    """Build a channels.Notifier from --notify (or SIDEKICK_CHANNELS); None if disabled."""
+    if not getattr(args, "notify", False):
+        return None
+    from .channels import make_notifier
+
+    names = None
+    sel = getattr(args, "channels", None)
+    if sel:
+        names = [n.strip() for n in sel.split(",") if n.strip()]
+    notifier = make_notifier(names)
+    if not notifier.active:
+        _print(
+            "[warn] --notify set but no channels are configured (set SIDEKICK_TELEGRAM_TOKEN, "
+            "SIDEKICK_SLACK_BOT_TOKEN, …). Continuing without notifications."
+            if _console
+            else "[warn] --notify set but no channels configured; continuing without notifications."
+        )
+        return None
+    return notifier
+
+
+def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False, notifier=None) -> int:
     """Run a plan to completion, print the result + objective table.
 
     When `emit_json=True`, replaces the human-friendly output with a
@@ -154,7 +176,7 @@ def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False) -> int:
             if _console
             else f"Running {len(plan.subtasks)} subtask(s) · backend={backend} · concurrency={cfg.concurrency}"
         )
-    report = asyncio.run(Orchestrator(cfg, policy).run(plan, ctx, mode="orchestrated"))
+    report = asyncio.run(Orchestrator(cfg, policy, notifier=notifier).run(plan, ctx, mode="orchestrated"))
     exit_code = 0 if report.n_accepted == len(report.outcomes) else 2
 
     if emit_json:
@@ -236,7 +258,50 @@ def cmd_run(args) -> int:
     if not (args.yes or emit_json) and not _confirm_plan(plan):
         _print("Aborted.")
         return 1
-    return _orchestrate(cfg, ctx, plan, emit_json=emit_json)
+    return _orchestrate(cfg, ctx, plan, emit_json=emit_json, notifier=_build_notifier(args))
+
+
+def cmd_gateway(args) -> int:
+    """Run the chat gateway: receive coding tasks over Telegram/Slack/WhatsApp/iMessage,
+    orchestrate them, and reply with the result."""
+    from .channels import load_channels
+    from .channels.gateway import Gateway
+
+    cfg = _mk_config(args)
+    cfg.ensure_dirs()
+    _ensure_endpoint_reachable(cfg)
+    names = [n.strip() for n in args.channels.split(",") if n.strip()] if args.channels else None
+    channels = load_channels(names)
+    if not channels:
+        _print(
+            "No channels configured. Set at least one channel's credentials, e.g. "
+            "SIDEKICK_TELEGRAM_TOKEN, then retry."
+        )
+        return 2
+    gw = Gateway(
+        cfg, channels, max_subtasks=args.max_subtasks,
+        http_host=args.http_host, http_port=args.http_port,
+    )
+    enabled = ", ".join(c.name for c in gw.channels)
+    access = "OPEN (anyone)" if gw.open_access else (f"allowlist={sorted(gw.allow) or 'EMPTY → closed'}")
+    _print(
+        f"[bold cyan]sidekick gateway[/bold cyan] · channels: {enabled} · access: {access}\n"
+        f"webhook server on {args.http_host}:{args.http_port} (Slack/WhatsApp). Ctrl-C to stop."
+        if _console
+        else f"sidekick gateway · channels: {enabled} · access: {access}"
+    )
+    if not gw.open_access and not gw.allow:
+        _print(
+            "[warn] no SIDEKICK_GATEWAY_ALLOW set and not SIDEKICK_GATEWAY_OPEN=1 — the "
+            "gateway will refuse every request. Set one to accept tasks."
+            if _console
+            else "[warn] gateway is closed: set SIDEKICK_GATEWAY_ALLOW or SIDEKICK_GATEWAY_OPEN=1."
+        )
+    try:
+        gw.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
 
 
 def cmd_repl(args) -> int:
@@ -377,8 +442,25 @@ def build_parser() -> argparse.ArgumentParser:
              "envelope shape is documented in examples/delegate-to-sidekick.SKILL.md "
              "(schema_version 1).",
     )
+    rp.add_argument(
+        "--notify", action="store_true",
+        help="Push run start/progress/result to configured chat channels (Telegram/Slack/"
+             "WhatsApp/iMessage). Select a subset with --channels.",
+    )
+    rp.add_argument(
+        "--channels", help="Comma-separated channel subset for --notify (default: all configured)",
+    )
     add_agent_opts(rp)
     rp.set_defaults(func=cmd_run)
+
+    gp = sub.add_parser(
+        "gateway", help="Receive tasks over chat (Telegram/Slack/WhatsApp/iMessage), run, reply"
+    )
+    gp.add_argument("--channels", help="Comma-separated channel subset (default: all configured)")
+    gp.add_argument("--http-host", default="0.0.0.0", dest="http_host", help="Webhook bind host")
+    gp.add_argument("--http-port", type=int, default=8787, dest="http_port", help="Webhook bind port")
+    add_agent_opts(gp)
+    gp.set_defaults(func=cmd_gateway)
 
     rep = sub.add_parser("repl", help="Interactive task loop (auto-launch on VSCode open)")
     rep.add_argument("-y", "--yes", action="store_true", help="Skip plan confirmation per task")
