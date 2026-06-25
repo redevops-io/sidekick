@@ -60,3 +60,28 @@ def test_plan_roundtrip_dict():
     plan = Plan(task="t", subtasks=[Subtask(id="a", title="A", description="d", acceptance_checks=["true"])])
     d = plan.to_dict()
     assert d["subtasks"][0]["acceptance_checks"] == ["true"]
+
+
+def test_parse_plan_background_flag_roundtrip():
+    data = {
+        "subtasks": [
+            {"id": "a", "description": "fg work"},
+            {"id": "b", "description": "bg work", "background": True},
+        ]
+    }
+    plan = _parse_plan("t", data)
+    flags = {s.id: s.background for s in plan.subtasks}
+    assert flags == {"a": False, "b": True}
+    # Survives serialization.
+    assert {s["id"]: s["background"] for s in plan.to_dict()["subtasks"]} == {"a": False, "b": True}
+
+
+def test_background_subtasks_excluded_from_foreground_waves():
+    # Background subtasks are scheduled separately, not inside the dependency waves.
+    subs = [
+        Subtask(id="a", title="", description=""),
+        Subtask(id="bg", title="", description="", background=True),
+    ]
+    foreground = [s for s in subs if not s.background]
+    ids = [[s.id for s in w] for w in topo_waves(foreground)]
+    assert ids == [["a"]]

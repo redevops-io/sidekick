@@ -24,7 +24,7 @@ from .memory import SessionMemory
 from .planner import Plan, Subtask
 from .prompts import AGENT_SYSTEM_PREFIX, agent_prompt
 from .repo_context import RepoContext, gather
-from .skills import Skill, SkillStore
+from .skills import Skill, SkillStore, UnsafeSkillError
 from .worktree import WorktreeManager
 
 
@@ -211,9 +211,27 @@ class Orchestrator:
             dashboard.finalize()  # write the initial doc before opening it
             vscode.open_file(progress_path)
 
+        def _merge_outcome(o: SubtaskOutcome) -> None:
+            o.merge_attempted = o.accepted
+            if o.accepted:
+                o.merged = _commit_and_merge(manager, o)
+                memory.working.done_subtasks.append(o.subtask.id)
+            report.outcomes.append(o)
+
+        # Background subagents (Hermes 0.17): launched up-front and run asynchronously
+        # alongside the foreground dependency waves; joined + merged after the waves.
+        foreground = [s for s in plan.subtasks if not s.background]
+        background = [s for s in plan.subtasks if s.background]
+
         wall_start = time.monotonic()
         with dashboard:
-            for wave in topo_waves(plan.subtasks):
+            bg_tasks = [
+                asyncio.create_task(
+                    self._run_subtask(s, manager, skill_hint, memory, dashboard, sem)
+                )
+                for s in background
+            ]
+            for wave in topo_waves(foreground):
                 # Re-resolve base so dependent waves branch from merged dependency work.
                 manager.refresh_base()
                 coros = [
@@ -223,11 +241,12 @@ class Orchestrator:
                 outcomes = await asyncio.gather(*coros)
                 # Merge green branches sequentially into the base branch (A3 metric).
                 for o in outcomes:
-                    o.merge_attempted = o.accepted
-                    if o.accepted:
-                        o.merged = _commit_and_merge(manager, o)
-                        memory.working.done_subtasks.append(o.subtask.id)
-                    report.outcomes.append(o)
+                    _merge_outcome(o)
+            # Join detached background subagents and merge them last.
+            if bg_tasks:
+                manager.refresh_base()
+                for o in await asyncio.gather(*bg_tasks):
+                    _merge_outcome(o)
 
         report.wall_ms = int((time.monotonic() - wall_start) * 1000)
         memory.save_working()
@@ -293,14 +312,19 @@ class Orchestrator:
         # Distill a skill from a fully-successful run (Hermes learning loop).
         if mode == "orchestrated" and report.n_accepted == len(plan.subtasks) and plan.subtasks:
             checks = sorted({c for s in plan.subtasks for c in s.acceptance_checks})
-            skills.save(
-                Skill(
-                    name=clip(plan.task, 48),
-                    trigger=plan.task,
-                    approach=f"Decomposed into {len(plan.subtasks)} parallel subtasks; all passed.",
-                    acceptance_checks=checks,
+            try:
+                skills.save(
+                    Skill(
+                        name=clip(plan.task, 48),
+                        trigger=plan.task,
+                        approach=f"Decomposed into {len(plan.subtasks)} parallel subtasks; all passed.",
+                        acceptance_checks=checks,
+                    )
                 )
-            )
+            except UnsafeSkillError as e:
+                # Don't fail a green run over a distilled skill that trips the scanner;
+                # just skip persisting it (Hermes 0.17 skill security scanning).
+                memory.append_transcript("skills", f"skipped unsafe distilled skill: {e}")
 
         return report
 

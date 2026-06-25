@@ -26,6 +26,10 @@ class Subtask:
     target_files: list[str] = field(default_factory=list)
     deps: list[str] = field(default_factory=list)
     acceptance_checks: list[str] = field(default_factory=list)
+    # Background subagent (ported from Hermes 0.17): launched up-front and run
+    # asynchronously alongside the foreground dependency waves, then joined + merged last.
+    # Default False preserves the wave-barrier scheduling.
+    background: bool = False
 
     def as_block(self) -> str:
         parts = [f"Title: {self.title}", f"Description: {self.description}"]
@@ -52,6 +56,7 @@ class Plan:
                     "target_files": s.target_files,
                     "deps": s.deps,
                     "acceptance_checks": s.acceptance_checks,
+                    "background": s.background,
                 }
                 for s in self.subtasks
             ],
@@ -88,6 +93,7 @@ def _parse_plan(task: str, data: dict) -> Plan:
                 target_files=[str(f) for f in raw.get("target_files", [])],
                 deps=[str(d) for d in raw.get("deps", [])],
                 acceptance_checks=[str(c) for c in raw.get("acceptance_checks", [])],
+                background=bool(raw.get("background", False)),
             )
         )
     # Drop deps that reference unknown ids.
