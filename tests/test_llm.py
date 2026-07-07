@@ -92,6 +92,15 @@ def test_resolve_local_defaults_offline_no_key(monkeypatch):
     assert resolve("local-metal").reachable_check is True
 
 
+def test_resolve_cuda_preset(monkeypatch):
+    monkeypatch.delenv("SIDEKICK_API_KEY", raising=False)
+    s = resolve("cuda")
+    # NVIDIA lane: local OpenAI-compatible vLLM/llama.cpp server on :8000, offline, no key.
+    assert s.api_base == "http://localhost:8000/v1"
+    assert s.model.startswith("openai/")
+    assert s.api_key == "EMPTY" and s.reachable_check is True
+
+
 def test_resolve_overrides_win():
     s = resolve("openai", model="openai/gpt-4o", api_base="http://x/v1", api_key="k", temperature=0.5)
     assert (s.model, s.api_base, s.api_key, s.temperature) == ("openai/gpt-4o", "http://x/v1", "k", 0.5)

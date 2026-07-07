@@ -85,7 +85,8 @@ targets a local OpenAI-compatible server and nothing leaves the machine.
 | `grok` | `xai/grok-4` | `XAI_API_KEY` | |
 | **`local-cpu`** *(default)* | `openai/<served>` @ `localhost:8080/v1` | — (none) | llama.cpp/vLLM/LM Studio CPU build |
 | **`local-metal`** | same, Mac GPU | — (none) | llama.cpp Metal / Ollama / MLX |
-| `selfhosted` | `openai/<served>` @ `localhost:8000/v1` | — | back-compat alias (evo-x2 vLLM) |
+| **`cuda`** | `openai/<served>` @ `localhost:8000/v1` | — (none) | NVIDIA GPUs — vLLM NVFP4/llama.cpp CUDA ([`scripts/serve_cuda.justfile`](scripts/serve_cuda.justfile)) |
+| `selfhosted` | `openai/<served>` @ `localhost:8000/v1` | — | back-compat alias (evo-x2 vLLM, ROCm) |
 | `ollama` | `ollama_chat/qwen2.5-coder:7b` | — | native Ollama |
 | *(anything else)* | used as a **raw LiteLLM model** | per provider | e.g. `openrouter/anthropic/claude-3.5-sonnet` |
 
@@ -115,10 +116,21 @@ llama-server -m ./model.gguf --port 8080 -ngl 99
 #   …or MLX:  mlx_lm.server --port 8080     →  --provider local-metal
 ```
 
-`local-cpu` and `local-metal` are the same wire protocol — the split is documentation +
-sensible defaults; the *build* of your local server is what actually decides CPU vs Metal.
-llama.cpp ignores the model field (it serves whatever GGUF is loaded); for vLLM pass the
-served name with `--model`.
+On **NVIDIA GPUs**, `--provider cuda` targets a local vLLM/llama.cpp CUDA server on `:8000`.
+[`scripts/serve_cuda.justfile`](scripts/serve_cuda.justfile) is a ready recipe — NVFP4
+(`nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4`) on Blackwell via vLLM with partial CPU
+offload, plus a llama.cpp CUDA GGUF fast path — both exposing OpenAI `/v1` with tool-calling:
+
+```bash
+just -f scripts/serve_cuda.justfile fetch          # NVFP4 checkpoint  (or: fetch-gguf)
+just -f scripts/serve_cuda.justfile serve-vllm-d    # detached vLLM on :8000 (or serve-llamacpp)
+sidekick run "..." --provider cuda                  # sidekick points at it
+```
+
+`local-cpu`, `local-metal`, and `cuda` are the same wire protocol — the split is
+documentation + sensible defaults (endpoint/model); the *build* of your local server is what
+actually decides CPU vs Apple-Metal vs NVIDIA-CUDA. llama.cpp ignores the model field (it
+serves whatever GGUF is loaded); for vLLM pass the served name with `--model`.
 
 - Same auto-approval policy everywhere: edits auto-approved; `run_bash` gated to the scoped
   allowlist (disabled under `edits_no_bash`, unrestricted under `bypass`).

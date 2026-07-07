@@ -66,6 +66,14 @@ PRESETS: dict[str, Preset] = {
         "openai/local-model", api_base=_LOCAL_BASE, default_key="sk-local",
         temperature=0.2, reachable_check=True,
     ),
+    # NVIDIA CUDA GPUs — a local vLLM/llama.cpp CUDA server (see scripts/serve_cuda.justfile,
+    # which serves Nemotron NVFP4 on Blackwell, or a GGUF fast path). Same OpenAI /v1 wire
+    # protocol as the other locals; the distinct preset names the NVIDIA hardware lane and
+    # defaults to that recipe's served model + :8000 port.
+    "cuda": Preset(
+        "openai/Nemotron-3-Super-120B-A12B", api_base="http://localhost:8000/v1",
+        default_key="EMPTY", temperature=0.2, reachable_check=True,
+    ),
     # Back-compat alias for the old vLLM/llama.cpp `selfhosted` setup (evo-x2 on :8000).
     "selfhosted": Preset(
         "openai/local-model", api_base="http://localhost:8000/v1", default_key="EMPTY",
