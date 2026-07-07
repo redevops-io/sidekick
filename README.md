@@ -3,9 +3,10 @@
 A **local coding-agent orchestrator**. Give it a high-level task and it:
 
 1. decomposes the task into a **DAG of subtasks**,
-2. fans out one **auto-approved, headless coding agent per subtask** (Claude Code or — on
-   this `selfhosted` branch by default — a **local vLLM/llama.cpp** server over OpenAI
-   `/v1`), each isolated on its own **git worktree/branch**,
+2. fans out one **auto-approved, headless coding agent per subtask** — **any LLM via
+   [LiteLLM](https://github.com/BerriAI/litellm)** (OpenAI, Anthropic, Kimi, Gemini, Grok,
+   or a **local CPU / Mac-Metal** model) or the **native Claude Code** binary — each
+   isolated on its own **git worktree/branch**,
 3. shows **live progress** — both a terminal `rich` table and a live `progress.md`
    document that opens in **VSCode** and auto-reloads as agents work,
 4. runs each subtask's **acceptance checks** (retrying once on failure),
@@ -31,7 +32,7 @@ significant deviations.
 | `repo_context.py` | workspace summary (branch, tree, docs) | Raschka #1 |
 | `prompts/` | stable system prefix + dynamic suffix for cache reuse | Raschka #2 |
 | `agent_session.py` + `approval.py` | headless `claude -p` wrapper, auto-approval policy | Raschka #3 |
-| `kimi_session.py` | OpenAI-compatible `/v1` agentic tool loop (here: local vLLM/llama.cpp) | Raschka #3 / Hermes |
+| `llm_session.py` + `providers.py` | universal agentic tool loop over **LiteLLM** (any provider/model) + provider presets | Raschka #3 / Hermes |
 | `context_budget.py` | output clipping + tiered transcript reduction | Raschka #4 |
 | `memory.py` | transcript + working memory as JSON on disk | Raschka #5 |
 | `orchestrator.py` | DAG waves, bounded parallel agents, merge | Raschka #6 / Hermes |
@@ -61,71 +62,66 @@ Each session runs inside its own worktree, so parallel agents never collide.
 Three approval levels (`--approval`): `accept_edits_allowlist` (default), `bypass`
 (`--allow-dangerously-skip-permissions`), `edits_no_bash`.
 
-## Provider backends (this is the `selfhosted` branch)
+## Provider backends — one codebase, any model (via LiteLLM)
 
-sidekick supports pluggable agent execution backends, selected by `--provider` (or
-`SIDEKICK_PROVIDER`). **On the `selfhosted` branch the default is `selfhosted`** — both task
-*planning* and agent *execution* run on a **local OpenAI-compatible server** (vLLM or
-llama.cpp) on the **evo-x2 (Strix Halo)** box, through a self-contained agentic tool loop
-(`read_file`/`write_file`/`edit_file`/`list_dir`/`run_bash`/`finish`), reusing sidekick's
-worktrees, auto-approval, dashboard, metrics, and merge. **No cloud key; no tokens leave the
-machine.** The default model is `mradermacher/Qwen3.5-122B-A10B-GGUF` (q4) — a ~122B MoE
-(~10B active) that fits comfortably in the box's 96 GB unified VRAM.
+`main` unifies what used to be per-provider branches into a **single, config-driven
+backend**. Pick a provider with `--provider` (or `SIDEKICK_PROVIDER`); everything except
+`claude` routes through **LiteLLM**, so the same self-contained agentic tool loop
+(`read_file`/`write_file`/`edit_file`/`list_dir`/`run_bash`/`finish`) drives *any* model —
+only the model string changes. `claude` instead drives the **native Claude Code binary** (a
+full agentic harness). Worktrees, auto-approval, dashboard, metrics, and merge are identical
+across all of them.
 
-Everything defaults to a local server on `:8000`, so in the common case you set **nothing**:
+**The default is `local-cpu` — fully offline, no API key.** So out of the box sidekick
+targets a local OpenAI-compatible server and nothing leaves the machine.
 
-| Var | `--flag` | Default |
-|-----|----------|---------|
-| `VLLM_BASE_URL` (or `SIDEKICK_AGENT_BASE_URL`) | `--vllm-base-url` | `http://localhost:8000/v1` |
-| `VLLM_MODEL` (or `SIDEKICK_AGENT_MODEL_NAME`) | `--vllm-model` | `Qwen3.5-122B-A10B` |
-| `VLLM_API_KEY` | `--vllm-key` | `EMPTY` (local servers are keyless) |
-| `VLLM_TEMPERATURE` | — | `0.2` (steady for merges/refactors) |
-| `SIDEKICK_PROVIDER` | `--provider` | `selfhosted` |
+| `--provider` | Resolves to (LiteLLM) | Key env | Notes |
+|---|---|---|---|
+| `claude` | native Claude Code CLI | Anthropic auth in the CLI | full harness, not an API call |
+| `anthropic` | `anthropic/claude-sonnet-4-5` | `ANTHROPIC_API_KEY` | Claude via API |
+| `openai` | `openai/gpt-5-codex` | `OPENAI_API_KEY` | gpt-5/o-series auto-routed by LiteLLM |
+| `kimi` | `moonshot/kimi-k2.7-code` | `MOONSHOT_API_KEY` | reasoning model (temp=1) |
+| `gemini` | `gemini/gemini-2.5-pro` | `GEMINI_API_KEY` | |
+| `grok` | `xai/grok-4` | `XAI_API_KEY` | |
+| **`local-cpu`** *(default)* | `openai/<served>` @ `localhost:8080/v1` | — (none) | llama.cpp/vLLM/LM Studio CPU build |
+| **`local-metal`** | same, Mac GPU | — (none) | llama.cpp Metal / Ollama / MLX |
+| `selfhosted` | `openai/<served>` @ `localhost:8000/v1` | — | back-compat alias (evo-x2 vLLM) |
+| `ollama` | `ollama_chat/qwen2.5-coder:7b` | — | native Ollama |
+| *(anything else)* | used as a **raw LiteLLM model** | per provider | e.g. `openrouter/anthropic/claude-3.5-sonnet` |
 
-> The defaults deliberately do **not** fall back to `OPENAI_BASE_URL` / `OPENAI_API_KEY`, so
-> a stray cloud key in your shell can never silently reroute inference off the local box.
-
-### Serving the model on the evo-x2
-
-```bash
-just -f scripts/serve_vllm.justfile fetch           # download the q4 GGUF
-just -f scripts/serve_vllm.justfile serve-llamacpp   # recommended on Strix Halo
-# just -f scripts/serve_vllm.justfile serve-vllm     # the literal vLLM path (see caveat)
-just -f scripts/serve_vllm.justfile health           # GET /v1/models
-```
-
-**vLLM vs llama.cpp on Strix Halo.** vLLM's GGUF support is *experimental* and CUDA-first;
-GGUF + MoE on AMD ROCm may be unsupported or slow. The justfile ships both recipes: the
-**llama.cpp** server (`serve-llamacpp`) is the recommended runtime for GGUF on this hardware,
-while `serve-vllm` is provided as literally requested. **Both expose the same OpenAI `/v1`
-API**, so sidekick's backend is identical either way — only the launch command differs.
+Overrides (win over any preset): `--model` (LiteLLM string), `--api-base`, `--api-key`,
+`--temperature` — or `SIDEKICK_MODEL` / `SIDEKICK_API_BASE` / `SIDEKICK_API_KEY` /
+`SIDEKICK_TEMPERATURE`.
 
 ```bash
-sidekick run "add input validation" --yes            # uses the local model (defaults)
-sidekick run "..." --provider claude                  # fall back to Claude Code headless
-sidekick run "..." --vllm-base-url http://otherbox:8000/v1   # server on another host
+sidekick run "add input validation" --yes                 # local-cpu (default, offline)
+sidekick run "..." --provider openai                       # gpt-5-codex (needs OPENAI_API_KEY)
+sidekick run "..." --provider claude                       # native Claude Code
+sidekick run "..." --provider local-metal --model openai/qwen2.5-coder  # Mac Metal
+sidekick run "..." --provider grok --temperature 0.3       # xAI Grok
 ```
 
-Notes:
-- The same auto-approval policy applies: edits are auto-approved; `run_bash` is gated to
-  the scoped allowlist (or disabled under `edits_no_bash`, unrestricted under `bypass`).
-- Branch model: shared features (voice, orchestration, metrics) live on `claude` and merge
-  into provider branches; `kimi`/`openai`/`grok`/`selfhosted` follow the same pattern,
-  differing only in the `/v1` endpoint and model they point at.
+### Running a local model (CPU or Mac Metal)
 
-## Primary task: keep the LibreChat fork merged with upstream
-
-The reason this branch exists: drive the **upstream merge of
-[danny-avila/LibreChat](https://github.com/danny-avila/LibreChat) into the
-[arybach/LibreChat](https://github.com/arybach/LibreChat) fork**, preserving the fork's
-self-hosted-model config and `search-aggregator/` subsystem — entirely with the local model.
-See [`examples/merge-librechat-upstream/`](examples/merge-librechat-upstream/):
+Any OpenAI-compatible server works — sidekick just needs the `/v1` endpoint:
 
 ```bash
-just -f scripts/serve_vllm.justfile serve-llamacpp    # 1. model up on the evo-x2
-uv tool install /mnt/backup/projects/sidekick          # 2. sidekick on PATH
-examples/merge-librechat-upstream/run.sh               # 3. fetch → merge → agents resolve
+# CPU (Linux/mac): llama.cpp server
+llama-server -m ./model.gguf --host 0.0.0.0 --port 8080
+
+# Mac Metal (GPU offload): add -ngl 99 to push layers onto the Apple GPU
+llama-server -m ./model.gguf --port 8080 -ngl 99
+#   …or use Ollama (Metal automatically):  ollama serve  →  --provider ollama
+#   …or MLX:  mlx_lm.server --port 8080     →  --provider local-metal
 ```
+
+`local-cpu` and `local-metal` are the same wire protocol — the split is documentation +
+sensible defaults; the *build* of your local server is what actually decides CPU vs Metal.
+llama.cpp ignores the model field (it serves whatever GGUF is loaded); for vLLM pass the
+served name with `--model`.
+
+- Same auto-approval policy everywhere: edits auto-approved; `run_bash` gated to the scoped
+  allowlist (disabled under `edits_no_bash`, unrestricted under `bypass`).
 
 ## Showing progress in VSCode
 

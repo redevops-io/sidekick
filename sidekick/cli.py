@@ -69,47 +69,52 @@ def _mk_config(args) -> Config:
     if getattr(args, "approval", None):
         cfg.approval = args.approval
     if getattr(args, "model", None):
+        # One flag for both backends: LiteLLM model string and the native Claude --model.
+        cfg.model = args.model
         cfg.agent_model = args.model
     if getattr(args, "vscode", None) is not None:
         cfg.vscode = args.vscode
     if getattr(args, "provider", None):
         cfg.provider = args.provider
-    if getattr(args, "vllm_model", None):
-        cfg.vllm_model = args.vllm_model
-    if getattr(args, "vllm_base_url", None):
-        cfg.vllm_base_url = args.vllm_base_url
-    if getattr(args, "vllm_key", None):
-        cfg.vllm_api_key = args.vllm_key
+    if getattr(args, "api_base", None):
+        cfg.api_base = args.api_base
+    if getattr(args, "api_key", None):
+        cfg.api_key = args.api_key
+    if getattr(args, "temperature", None) is not None:
+        cfg.temperature = args.temperature
     return cfg
 
 
-
-
 def _ensure_endpoint_reachable(cfg) -> None:
-    """Warn (don't fail) if the local self-hosted server isn't answering.
+    """Warn (don't fail) if a *local* OpenAI-compatible server isn't answering.
 
-    The `selfhosted` backend talks to a *local* OpenAI-compatible server (vLLM / llama.cpp)
-    — no cloud key. The common failure is simply that the server on the evo-x2 box isn't up
-    yet, so we do a quick liveness probe of `GET {base_url}/models` and print an actionable
-    hint. We never exit here: the probe may be blocked (firewall/proxy) while the actual
-    chat call still succeeds, and offline planning falls back gracefully."""
-    if cfg.provider == "claude":
+    Only probes providers that point at a local api_base (local-cpu / local-metal /
+    selfhosted). Hosted providers (openai/anthropic/…) and the native Claude backend are
+    skipped. Never exits: the probe may be blocked while the chat call still works, and
+    planning falls back gracefully."""
+    from .providers import is_claude
+
+    if is_claude(cfg.provider):
+        return
+    settings = cfg.llm()
+    if not settings.reachable_check or not settings.api_base:
         return
     import urllib.error
     import urllib.request
 
-    url = f"{cfg.vllm_base_url.rstrip('/')}/models"
+    url = f"{settings.api_base.rstrip('/')}/models"
     req = urllib.request.Request(
-        url, headers={"Authorization": f"Bearer {cfg.vllm_api_key}"}, method="GET"
+        url, headers={"Authorization": f"Bearer {settings.api_key or 'EMPTY'}"}, method="GET"
     )
     try:
         with urllib.request.urlopen(req, timeout=3):
             return
     except (urllib.error.URLError, OSError) as e:
         _print(
-            f"[warn] self-hosted server not reachable at {cfg.vllm_base_url} ({e}).\n"
-            f"       Start it on the evo-x2 box, e.g.:  just -f scripts/serve_vllm.justfile serve\n"
-            f"       or point elsewhere with --vllm-base-url / VLLM_BASE_URL. Continuing anyway."
+            f"[warn] local model server not reachable at {settings.api_base} ({e}).\n"
+            f"       Start one, e.g.:  llama-server -m model.gguf --port 8080  (add -ngl 99 for "
+            f"Metal/GPU),\n"
+            f"       or point elsewhere with --api-base / SIDEKICK_API_BASE. Continuing anyway."
         )
 
 
@@ -168,7 +173,11 @@ def _orchestrate(cfg: Config, ctx, plan, *, emit_json: bool = False, notifier=No
     --json`) that need to parse the outcome programmatically.
     """
     policy = ApprovalPolicy(level=cfg.approval)
-    backend = f"{cfg.provider}:{cfg.vllm_model}" if cfg.provider != "claude" else f"claude:{cfg.agent_model or 'default'}"
+    backend = (
+        f"claude:{cfg.agent_model or 'default'}"
+        if cfg.provider == "claude"
+        else f"{cfg.provider}:{cfg.llm().model}"
+    )
     if not emit_json:
         _print(
             f"[dim]Running {len(plan.subtasks)} subtask(s) · backend={backend} · "
@@ -415,12 +424,17 @@ def build_parser() -> argparse.ArgumentParser:
     def add_agent_opts(sp):
         sp.add_argument("--concurrency", type=int, help="Max parallel agents")
         sp.add_argument("--approval", help="accept_edits_allowlist | bypass | edits_no_bash")
-        sp.add_argument("--model", help="Model for spawned agents (default: inherit)")
+        sp.add_argument("--model", help="Model override (LiteLLM string, or native Claude model)")
         sp.add_argument("--max-subtasks", type=int, default=6, dest="max_subtasks")
-        sp.add_argument("--provider", help="Agent backend: claude | selfhosted (default: selfhosted on this branch)")
-        sp.add_argument("--vllm-model", dest="vllm_model", help="Served model name (or VLLM_MODEL / SIDEKICK_AGENT_MODEL_NAME)")
-        sp.add_argument("--vllm-base-url", dest="vllm_base_url", help="Local /v1 endpoint (or VLLM_BASE_URL / SIDEKICK_AGENT_BASE_URL)")
-        sp.add_argument("--vllm-key", dest="vllm_key", help="Bearer for an auth-fronted server (default: EMPTY)")
+        sp.add_argument(
+            "--provider",
+            help="Backend preset: claude (native CLI) | openai | anthropic | kimi | gemini | "
+                 "grok | local-cpu | local-metal | selfhosted | ollama | <raw litellm model>. "
+                 "Default: local-cpu.",
+        )
+        sp.add_argument("--api-base", dest="api_base", help="OpenAI-compatible base URL (local servers)")
+        sp.add_argument("--api-key", dest="api_key", help="API key (overrides provider key env)")
+        sp.add_argument("--temperature", type=float, help="Sampling temperature (default: per provider)")
         sp.add_argument(
             "--vscode", dest="vscode", action="store_true", default=None,
             help="Open the live progress doc + changed files in VSCode (default: auto-detect)",

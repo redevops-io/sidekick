@@ -19,10 +19,11 @@ from .approval import ApprovalPolicy
 from .config import Config
 from .context_budget import clip
 from .dashboard import Dashboard
-from .kimi_session import run_kimi_agent
+from .llm_session import run_llm_agent
 from .memory import SessionMemory
 from .planner import Plan, Subtask
 from .prompts import AGENT_SYSTEM_PREFIX, agent_prompt
+from .providers import is_claude
 from .repo_context import RepoContext, gather
 from .skills import Skill, SkillStore, UnsafeSkillError
 from .worktree import WorktreeManager
@@ -107,10 +108,10 @@ class Orchestrator:
         self.notifier = notifier
 
     async def _backend(self, name: str, prompt: str, cwd, on_event) -> AgentResult:
-        """Dispatch to the configured agent backend (Claude Code headless, or a local
-        OpenAI-compatible /v1 server for the `selfhosted` provider)."""
-        if self.cfg.provider != "claude":
-            return await run_kimi_agent(
+        """Dispatch to the configured agent backend: the native Claude Code binary for
+        provider=claude, else sidekick's LiteLLM tool loop (any other provider/model)."""
+        if not is_claude(self.cfg.provider):
+            return await run_llm_agent(
                 self.cfg, self.policy, name, prompt, cwd,
                 on_event=on_event, append_system=AGENT_SYSTEM_PREFIX,
             )
@@ -231,8 +232,8 @@ class Orchestrator:
             _notify("subtask_done", o.subtask.id, o.accepted, o.merged, o.attempts)
 
         backend = (
-            f"{cfg.provider}:{cfg.vllm_model}" if cfg.provider != "claude"
-            else f"claude:{cfg.agent_model or 'default'}"
+            f"claude:{cfg.agent_model or 'default'}" if is_claude(cfg.provider)
+            else f"{cfg.provider}:{cfg.llm().model}"
         )
         _notify("run_started", plan.task, len(plan.subtasks), backend)
 

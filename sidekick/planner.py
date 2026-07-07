@@ -123,12 +123,14 @@ def make_plan(cfg: Config, ctx: RepoContext, task: str, max_subtasks: int = 6) -
     """Produce a Plan by querying the configured provider; fall back to a single subtask."""
     prompt = planner_prompt(task, ctx.render(), max_subtasks)
 
-    if getattr(cfg, "provider", "claude") != "claude":
-        from .kimi_session import KimiError, kimi_complete
+    from .providers import is_claude
+
+    if not is_claude(getattr(cfg, "provider", "claude")):
+        from .llm_session import LLMError, llm_complete
 
         try:
-            text = kimi_complete(cfg, PLANNER_SYSTEM, prompt)
-        except KimiError:
+            text = llm_complete(cfg, PLANNER_SYSTEM, prompt)
+        except LLMError:
             return _fallback_plan(task)
         data = _extract_json(text)
         return _parse_plan(task, data) if data else _fallback_plan(task)
