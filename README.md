@@ -19,6 +19,8 @@ acceptance, 0 merge conflicts, 0 human-wait — see [RESULTS.md](RESULTS.md).
 It is built fully autonomously after a single plan approval, and re-prompts only on
 significant deviations.
 
+> **Versioning — backwards-compatible across v1 · v2 · v3 · v4.** This is the unified line; the CLI, config, skills, and memory from every prior version keep working — upgrade in place, no migration.
+
 ## Design lineage
 
 | Source | What sidekick takes from it |
