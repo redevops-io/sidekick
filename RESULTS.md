@@ -3,6 +3,8 @@
 End-to-end validation via `sidekick bench` (3 disjoint subtasks, real auto-approved
 headless Claude sessions on `claude-haiku-4-5`, serial baseline vs orchestrated at N=3).
 
+> Note: `sidekick bench` now defaults to the local model (`local-cpu`); reproduce these `claude-haiku` numbers with `sidekick bench --provider claude`.
+
 Serial baseline **35.7s** → orchestrated **6.6s** (3 parallel auto-approved agents).
 
 | ID | Objective | Value | Target | Status |
