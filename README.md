@@ -1,5 +1,9 @@
 # sidekick
 
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE) ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB.svg) [![NVIDIA Inception](https://img.shields.io/badge/NVIDIA-Inception%20Program%20Member-76B900.svg)](https://www.nvidia.com/en-us/startups/)
+
+> **🚀 NVIDIA Inception Program Member** — ReDevOps is a member of the NVIDIA Inception Program, supporting startups advancing AI and accelerated computing. Membership provides access to NVIDIA technology, technical resources, and the startup ecosystem. It does not imply product endorsement by NVIDIA.
+
 A **local coding-agent orchestrator**. Give it a high-level task and it:
 
 1. decomposes the task into a **DAG of subtasks**,
@@ -219,7 +223,7 @@ sidekick repl --voice          # voice-driven interactive loop (great for the VS
 ```
 
 Speech-to-text goes through an **OpenAI-compatible `/audio/transcriptions`** endpoint, so
-it is provider-independent from the coding model (shared by the `claude`, `kimi`, … branches):
+it is provider-independent from the coding model (the same STT path is used for every provider):
 
 | Var | Default |
 |-----|---------|
@@ -310,9 +314,9 @@ this table.
 ## Delegation from another Claude Code session
 
 `sidekick` can be invoked **from inside another Claude Code session** so the
-parent session never spends its own context on the work. On this `selfhosted`
-branch the spawned sub-agents run on the local model (vLLM/llama.cpp `/v1`) by
-default; the parent Claude Code session shells out via a single CLI call and
+parent session never spends its own context on the work. By default the spawned
+sub-agents run on the local model (`local-cpu` — vLLM/llama.cpp `/v1` on `:8080`);
+the parent Claude Code session shells out via a single CLI call and
 parses a JSON envelope back.
 
 Two pieces:
@@ -320,7 +324,7 @@ Two pieces:
 1. **Install once, globally**:
 
    ```bash
-   uv tool install /mnt/backup/projects/sidekick
+   uv tool install --editable .
    ```
 
    Puts `sidekick` on `PATH` for every shell — every Claude Code session
@@ -328,11 +332,11 @@ Two pieces:
    pulling new changes:
 
    ```bash
-   uv tool install --reinstall /mnt/backup/projects/sidekick
+   uv tool install --reinstall --editable .
    ```
 
 2. **The user-level skill** at `~/.claude/skills/delegate-to-sidekick/SKILL.md`
-   (canonical copy in this branch at `examples/delegate-to-sidekick.SKILL.md`)
+   (canonical copy in the repo at `examples/delegate-to-sidekick.SKILL.md`)
    teaches any Claude Code session **when** to delegate, **how** to invoke,
    and **what envelope** to expect. Auto-discovered by Claude Code via the
    `~/.claude/skills/` user-skills dir — the parent session will see
@@ -352,10 +356,10 @@ sidekick --repo /abs/path/to/repo run "<task>" --json --no-vscode
   parent's IDE.
 
 The envelope carries `ok`, `n_accepted/n_total`, `n_merged`, the `backend` used
-(`selfhosted:<model>` or `claude:<model>` per the per-run `--provider` choice),
+(`<provider>:<model>` — e.g. `local-cpu:openai/local-model` — or `claude:<model>` per the per-run `--provider` choice),
 per-subtask `branch`, and the last 2 KB of each acceptance check's transcript.
 Enough for the parent to summarize and decide whether to follow up.
 
-On this branch the default backend is the local self-hosted model (vLLM/llama.cpp);
+The default backend is the local model (`local-cpu`, llama.cpp/vLLM on `:8080`);
 pass `--provider claude` to delegate to native Claude Code sub-agents instead. Either way
 the envelope shape is identical — only the `backend` field changes.

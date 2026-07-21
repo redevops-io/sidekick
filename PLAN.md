@@ -1,8 +1,8 @@
 # sidekick — local coding-agent orchestrator
 
 **Goal:** A local orchestrator that decomposes a high-level coding task, fans out to
-multiple **auto-approved Claude Code headless sessions** (each on its own git
-branch/worktree), shows live progress, and optimizes around measurable speed/accuracy
+multiple **auto-approved headless coding agents** — any LLM via LiteLLM (default
+`local-cpu`) or the native Claude Code binary, each on its own git branch/worktree, shows live progress, and optimizes around measurable speed/accuracy
 objectives. Inspired by the **Nous Hermes-Agent** architecture (skills/memory loop, RPC
 subagents, pluggable terminal backends) and grounded in **Raschka's six coding-agent
 components**.
@@ -10,17 +10,16 @@ components**.
 ## Substrate (verified)
 - Claude Code native binary at `$CLAUDE_CODE_EXECPATH` → headless via
   `claude -p --output-format stream-json --verbose`, auto-approval via
-  `--permission-mode acceptEdits` / `--allow-dangerously-skip-permissions`,
-  multi-agent via `--agents`, scoping via `--allowedTools` / `--add-dir`,
+  `--permission-mode acceptEdits` / `--allow-dangerously-skip-permissions`, scoping via `--allowedTools` / `--add-dir`,
   continuity via `--session-id` / `--resume`.
 - `git` worktrees give each agent an isolated branch (Hermes "terminal backend" analog).
-- Python 3.14 + uv + ruff (matches the sibling `vibexgen` project conventions).
+- Python >= 3.12 + uv + ruff (matches the sibling `vibexgen` project conventions).
 
 ## Architecture (maps Hermes ↔ Raschka)
 ```
 sidekick/
   sidekick/
-    __main__.py / cli.py     CLI: run | plan | status | metrics | bench
+    __main__.py / cli.py     CLI: run | plan | repl | voice | status | metrics | bench | gateway
     config.py                models, concurrency, paths, env
     repo_context.py          [Raschka #1] git status, tree, docs → workspace summary
     prompts/                 [Raschka #2] stable system-prefix fragments (cache reuse)
