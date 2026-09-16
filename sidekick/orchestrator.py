@@ -8,6 +8,7 @@ branches back. Streams live progress and records every speed/accuracy/efficiency
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -27,6 +28,22 @@ from .providers import is_claude
 from .repo_context import RepoContext, gather
 from .skills import Skill, SkillStore, UnsafeSkillError
 from .worktree import WorktreeManager
+
+
+def _make_skill_store(skills_dir):
+    """Baseline ``SkillStore``, or the Context-Runtime learning store (planner/retriever-ranked
+    recall + a bandit that learns the rewarding recall strategy from sidekick's own acceptance)
+    when ``SIDEKICK_CONTEXT_RUNTIME=1`` AND context_runtime is importable. Env-gated A/B; a missing
+    package or wiring error falls back to the baseline, so sidekick never hard-depends on it.
+    """
+    if os.environ.get("SIDEKICK_CONTEXT_RUNTIME") == "1":
+        try:
+            from context_runtime.integrations.sidekick import make_skill_store
+            return make_skill_store(skills_dir, use_context_runtime=True)
+        except Exception as e:  # noqa: BLE001 — ImportError / wiring issue → safe baseline
+            print(f"[sidekick] SIDEKICK_CONTEXT_RUNTIME=1 but context_runtime unavailable "
+                  f"({e!r}); using baseline SkillStore")
+    return SkillStore(skills_dir)
 
 
 @dataclass
@@ -190,7 +207,7 @@ class Orchestrator:
         memory = SessionMemory(run_dir, plan.task)
         memory.working.task = plan.task
         memory.working.open_subtasks = [s.id for s in plan.subtasks]
-        skills = SkillStore(cfg.skills_dir)
+        skills = _make_skill_store(cfg.skills_dir)
 
         recalled = skills.recall(plan.task)
         skill_hint = "\n".join(f"- {s.name}: {s.approach}" for s in recalled)
@@ -331,6 +348,17 @@ class Orchestrator:
             )
             metrics.append(cfg.metrics_path, sub_rec)
             report.objective_records.append(sub_rec)
+            # Close the loop: feed acceptance/efficiency back so the Context-Runtime bandit learns
+            # the rewarding recall strategy. No-op on the baseline store (guarded by hasattr); never
+            # let telemetry break a run.
+            if hasattr(skills, "record_outcome"):
+                try:
+                    from context_runtime.integrations.sidekick import SubtaskOutcome
+                    skills.record_outcome(plan.task, SubtaskOutcome(
+                        accepted=o.accepted, first_attempt=(o.first_attempt and o.accepted),
+                        tokens_total=sum(r.tokens.values()), cost_usd=r.cost_usd, wall_ms=r.wall_ms))
+                except Exception:  # noqa: BLE001
+                    pass
 
         # Distill a skill from a fully-successful run (Hermes learning loop).
         if mode == "orchestrated" and report.n_accepted == len(plan.subtasks) and plan.subtasks:
