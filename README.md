@@ -293,6 +293,31 @@ sidekick run "..." --no-vscode            # terminal dashboard only
 sidekick run "..." --concurrency 5        # wider fan-out
 ```
 
+## UI testing — Sidekick Test / Audit / Benchmark
+
+Goal-based browser testing that **proves the outcome** — the execution agent is never allowed to grade its
+own work; a deterministic predicate on the real page decides pass/fail. Over the reusable ReDevOps
+`ui-agent` engine (install with the `ui` extra: `uv sync --extra ui && uv run playwright install chromium`).
+
+```bash
+# Tell it what a user should be able to do; it does it and proves whether it worked.
+sidekick test https://staging.example.com "Sign up and reach the dashboard" \
+    --expect "url_contains:/dashboard"
+
+# Deterministic WCAG 2.2 + Core Web Vitals + browser-health audit → root-cause defect families.
+sidekick audit https://example.com --type Landing/Marketing
+sidekick audit --all --assert-regressions .sidekick/regressions.json   # CI gate
+
+# Time-to-Capability head-to-head: the same goal across products/releases.
+sidekick benchmark --capability cost_audit
+```
+
+Add `--json` for a `schema_version: 1` envelope. Each mode is documented as an agent skill in
+[`examples/sidekick-test.SKILL.md`](examples/sidekick-test.SKILL.md),
+[`examples/sidekick-audit.SKILL.md`](examples/sidekick-audit.SKILL.md) and
+[`examples/sidekick-benchmark.SKILL.md`](examples/sidekick-benchmark.SKILL.md). Without the `ui` extra (or an
+LLM key for `test`/`benchmark`) these self-skip cleanly.
+
 Run `sidekick` from inside the target git repository (changes are made to that repo's
 branches and merged into its current branch).
 

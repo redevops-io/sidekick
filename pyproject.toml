@@ -14,6 +14,12 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.7",
 ]
+# Sidekick Test / Audit / Benchmark — the reusable ReDevOps ui-agent engine (audit / journey /
+# benchmark) + its browser layer. Its home is the agentic-tests repo; after install run
+# `playwright install chromium`. (Requires the engine's packaging change to be on the pinned ref.)
+ui = [
+    "agentic-tests[ui] @ git+https://github.com/redevops-io/agentic-tests.git@master",
+]
 
 [project.scripts]
 sidekick = "sidekick.cli:main"
@@ -21,6 +27,10 @@ sidekick = "sidekick.cli:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# the `ui` extra pulls the ui-agent engine via a git direct reference
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["sidekick"]

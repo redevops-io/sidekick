@@ -416,6 +416,57 @@ def cmd_bench(args) -> int:
     return run_bench(repo=args.repo, concurrency=args.concurrency or 3, keep=args.keep)
 
 
+# --- Sidekick Test / Audit / Benchmark — UI capabilities over the ui-agent engine ---------------
+def _ui_envelope(mode: str, out: dict) -> int:
+    """Print a JSON envelope (schema_version 1) and return the engine exit code."""
+    print(json.dumps({"schema_version": 1, "mode": mode,
+                      "returncode": out["returncode"], "result": out.get("result")}, indent=2))
+    return out["returncode"]
+
+
+def cmd_test(args) -> int:
+    from . import ui
+    try:
+        out = ui.run_test(args.url, args.goal, args.expect, steps=args.step or None,
+                          max_steps=args.max_steps, headed=args.headed)
+    except ui.EngineUnavailable as e:
+        _print(f"[warn] {e}" if _console else f"[warn] {e}")
+        return 0
+    if getattr(args, "json", False):
+        return _ui_envelope("test", out)
+    _print(out["stdout"].rstrip())
+    return out["returncode"]
+
+
+def cmd_audit(args) -> int:
+    from . import ui
+    try:
+        out = ui.run_audit(url=args.url, service_type=args.type, product=args.product,
+                          all_targets=args.all, assert_regressions=args.assert_regressions)
+    except ui.EngineUnavailable as e:
+        _print(f"[warn] {e}")
+        return 0
+    if getattr(args, "json", False):
+        return _ui_envelope("audit", out)
+    _print(out["stdout"].rstrip())
+    if out["stderr"].strip():
+        _print(out["stderr"].rstrip())
+    return out["returncode"]
+
+
+def cmd_benchmark(args) -> int:
+    from . import ui
+    try:
+        out = ui.run_benchmark(args.capability, targets=args.target or None)
+    except ui.EngineUnavailable as e:
+        _print(f"[warn] {e}")
+        return 0
+    if getattr(args, "json", False):
+        return _ui_envelope("benchmark", out)
+    _print(out["stdout"].rstrip())
+    return out["returncode"]
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="sidekick", description="Local coding-agent orchestrator.")
     p.add_argument("--repo", default=".", help="Target repository root (default: cwd)")
@@ -508,6 +559,35 @@ def build_parser() -> argparse.ArgumentParser:
     bp.add_argument("--concurrency", type=int, default=3)
     bp.add_argument("--keep", action="store_true", help="Keep the scratch bench repo")
     bp.set_defaults(func=cmd_bench)
+
+    # UI product surface (needs the `ui` extra: the ui-agent engine + a browser).
+    tp = sub.add_parser("test", help="Goal-based UI test that PROVES the outcome (Sidekick Test)")
+    tp.add_argument("url", help="app under test")
+    tp.add_argument("goal", help="what a user should be able to do, in plain language")
+    tp.add_argument("--expect", required=True,
+                    help="deterministic success signal (the agent can't grade itself): "
+                         "usable_state:N | selector:CSS | selector_text:CSS=TEXT | url_contains:V")
+    tp.add_argument("--step", action="append", default=[], help="explicit sub-step (repeatable)")
+    tp.add_argument("--max-steps", type=int, default=25, dest="max_steps")
+    tp.add_argument("--headed", action="store_true")
+    tp.add_argument("--json", action="store_true", dest="json", help="emit a JSON envelope (schema_version 1)")
+    tp.set_defaults(func=cmd_test)
+
+    ap2 = sub.add_parser("audit", help="Deterministic WCAG / Core Web Vitals / health audit (Sidekick Audit)")
+    ap2.add_argument("url", nargs="?", default=None, help="one target URL (omit for --product/--all)")
+    ap2.add_argument("--type", default=None, help="service_type for the URL (e.g. Landing/Marketing)")
+    ap2.add_argument("--product", default=None, help="a product key from the engine's recipe pack")
+    ap2.add_argument("--all", action="store_true", help="audit the whole registered portfolio")
+    ap2.add_argument("--assert-regressions", default=None, dest="assert_regressions", metavar="STORE",
+                     help="fail if any persisted fixed-signature reappears")
+    ap2.add_argument("--json", action="store_true", dest="json", help="emit a JSON envelope (schema_version 1)")
+    ap2.set_defaults(func=cmd_audit)
+
+    bmp = sub.add_parser("benchmark", help="Time-to-Capability head-to-head across targets (Sidekick Benchmark)")
+    bmp.add_argument("--capability", required=True, help="capability key (e.g. cost_audit)")
+    bmp.add_argument("--target", action="append", default=[], help="limit to these targets (repeatable)")
+    bmp.add_argument("--json", action="store_true", dest="json", help="emit a JSON envelope (schema_version 1)")
+    bmp.set_defaults(func=cmd_benchmark)
 
     return p
 
