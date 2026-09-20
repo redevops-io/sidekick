@@ -18,7 +18,7 @@ dev = [
 # benchmark) + its browser layer. Its home is the agentic-tests repo; after install run
 # `playwright install chromium`. (Requires the engine's packaging change to be on the pinned ref.)
 ui = [
-    "agentic-tests[ui] @ git+https://github.com/redevops-io/agentic-tests.git@master",
+    "agentic-tests[ui] @ git+https://github.com/redevops-io/agentic-tests.git@v0.1.0",
 ]
 
 [project.scripts]
