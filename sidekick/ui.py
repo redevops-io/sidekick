@@ -99,3 +99,20 @@ def run_benchmark(capability: str, *, targets: Optional[List[str]] = None) -> Di
     for t in (targets or []):
         argv += ["--target", t]
     return _invoke(argv, json_out=True)
+
+
+def run_deploy_audit(*, host: str = "proxmox", public_host: str = "192.168.40.105",
+                     llm_base_url: Optional[str] = None, llm_model: str = "qwen3.8-27b",
+                     strict: bool = False, keep: bool = False) -> Dict[str, Any]:
+    """Deploy the full apps stack the way redevops.io/projects documents it (into an isolated, ephemeral
+    copy), then audit + run usability journeys over every surface, and tear it down. Needs a model endpoint
+    (``llm_base_url`` or ``$STACK_LLM_BASE_URL``), docker on ``host``, and the browser layer; the engine
+    self-skips (exit 0) if any is missing."""
+    argv = ["deploy-audit", "--host", host, "--public-host", public_host, "--llm-model", llm_model]
+    if llm_base_url:
+        argv += ["--llm-base-url", llm_base_url]
+    if strict:
+        argv += ["--strict"]
+    if keep:
+        argv += ["--keep"]
+    return _invoke(argv, json_out=True)

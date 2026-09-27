@@ -467,6 +467,23 @@ def cmd_benchmark(args) -> int:
     return out["returncode"]
 
 
+def cmd_deploy_audit(args) -> int:
+    from . import ui
+    try:
+        out = ui.run_deploy_audit(host=args.host, public_host=args.public_host,
+                                  llm_base_url=args.llm_base_url, llm_model=args.llm_model,
+                                  strict=args.strict, keep=args.keep)
+    except ui.EngineUnavailable as e:
+        _print(f"[warn] {e}")
+        return 0
+    if getattr(args, "json", False):
+        return _ui_envelope("deploy-audit", out)
+    _print(out["stdout"].rstrip())
+    if out["stderr"].strip():
+        _print(out["stderr"].rstrip())
+    return out["returncode"]
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="sidekick", description="Local coding-agent orchestrator.")
     p.add_argument("--repo", default=".", help="Target repository root (default: cwd)")
@@ -588,6 +605,19 @@ def build_parser() -> argparse.ArgumentParser:
     bmp.add_argument("--target", action="append", default=[], help="limit to these targets (repeatable)")
     bmp.add_argument("--json", action="store_true", dest="json", help="emit a JSON envelope (schema_version 1)")
     bmp.set_defaults(func=cmd_benchmark)
+
+    dap = sub.add_parser("deploy-audit",
+                         help="Deploy the apps stack per redevops.io/projects (isolated), then audit + journey every surface (Sidekick Deploy-Audit)")
+    dap.add_argument("--host", default="proxmox", help="ssh alias or 'local' where docker compose runs")
+    dap.add_argument("--public-host", default="192.168.40.105", dest="public_host",
+                     help="host/ip a browser uses to reach the stack")
+    dap.add_argument("--llm-base-url", default=None, dest="llm_base_url",
+                     help="OpenAI-compatible model endpoint (or $STACK_LLM_BASE_URL)")
+    dap.add_argument("--llm-model", default="qwen3.8-27b", dest="llm_model")
+    dap.add_argument("--strict", action="store_true", help="non-zero exit on any confirmed audit blocker")
+    dap.add_argument("--keep", action="store_true", help="leave the ephemeral stack running (debug)")
+    dap.add_argument("--json", action="store_true", dest="json", help="emit a JSON envelope (schema_version 1)")
+    dap.set_defaults(func=cmd_deploy_audit)
 
     return p
 
