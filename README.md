@@ -4,6 +4,13 @@
 
 > **🚀 NVIDIA Inception Program Member** — ReDevOps is a member of the NVIDIA Inception Program, supporting startups advancing AI and accelerated computing. Membership provides access to NVIDIA technology, technical resources, and the startup ecosystem. It does not imply product endorsement by NVIDIA.
 
+- **What it does:** local coding-agent orchestrator that fans a task out into auto-approved sub-sessions on isolated git worktrees.
+- **Who it's for:** developers who want to run several coding agents in parallel on one repo, with a local or hosted model.
+- **Maturity:** alpha (version 0.1.0, see [STATUS.md](STATUS.md)).
+- **3-minute example:** [Install](#install) from a clone, then `sidekick plan "add input validation"` (see [Usage](#usage)). The default provider needs a local OpenAI-compatible server on `:8080`; see [Requirements](#requirements).
+- **Evidence:** one illustrative benchmark run, see below and [RESULTS.md](RESULTS.md); unit tests in `tests/`.
+- **Limitations:** [STATUS.md](STATUS.md). **Docs:** [OBJECTIVES.md](OBJECTIVES.md), [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md).
+
 A **local coding-agent orchestrator**. Give it a high-level task and it:
 
 1. decomposes the task into a **DAG of subtasks**,
@@ -17,8 +24,16 @@ A **local coding-agent orchestrator**. Give it a high-level task and it:
 5. **merges** the green branches and opens the changed files in VSCode,
 6. reports a table of **measurable speed/accuracy objectives**.
 
-Validated end to end: serial baseline **35.7s → orchestrated 6.6s** (5.40× speedup), 100%
-acceptance, 0 merge conflicts, 0 human-wait — see [RESULTS.md](RESULTS.md).
+**Evidence (Illustrative/synthetic, single run):** one run, 3 agents, linear ceiling 3×, raw metrics not in repo.
+The one recorded figure (serial 35.7s vs orchestrated 6.6s, reported as 5.40×) comes from
+`sidekick bench` on a toy task: three independent one-function Python modules (`alpha.add`,
+`beta.mul`, `gamma.sub`, see [`experiments/bench.py`](experiments/bench.py)), run on `claude-haiku-4-5`.
+The serial baseline is the *same* 3-subtask plan run with concurrency 1 in a fresh scratch repo;
+orchestrated is concurrency 3. The 5.40× exceeds the 3× linear ceiling for 3 agents and
+[RESULTS.md](RESULTS.md) does not explain why (explanation: NOT_IN_REPO); the raw `metrics.jsonl` is
+NOT_IN_REPO; number of repeats / variance: NOT_IN_REPO. Do not read it as a general speedup.
+`sidekick bench` now defaults to the local model; the headline needs the Claude provider
+(see [RESULTS.md](RESULTS.md)).
 
 It is built fully autonomously after a single plan approval, and re-prompts only on
 significant deviations.
@@ -275,6 +290,15 @@ handles). Set `SIDEKICK_GATEWAY_OPEN=1` to accept anyone — only on a trusted, 
 `SIDEKICK_CHANNELS` (comma-separated) selects which adapters to load; unset = all that have
 credentials present. A channel missing its tokens is silently skipped.
 
+## Install
+
+> **Do not `pip install sidekick`.** An unrelated package named `sidekick` (0.8.2 at the time of writing) exists on PyPI and is not this project. Install from a clone with `uv tool install --editable .`.
+
+```bash
+git clone https://github.com/redevops-io/sidekick.git && cd sidekick
+uv tool install --editable .
+```
+
 ## Usage
 
 ```bash
@@ -286,7 +310,7 @@ sidekick voice                            # speak a task; sidekick runs it
 sidekick repl --voice                     # voice-driven loop
 sidekick metrics                          # objective table from .sidekick/metrics.jsonl
 sidekick status                           # last run's working memory
-sidekick bench                            # serial baseline vs orchestrated (proves S2)
+sidekick bench                            # serial baseline vs orchestrated (S2); see RESULTS.md caveats
 
 sidekick run "..." --vscode               # force-open progress + diffs in VSCode
 sidekick run "..." --no-vscode            # terminal dashboard only
@@ -318,6 +342,10 @@ Add `--json` for a `schema_version: 1` envelope. Each mode is documented as an a
 [`examples/sidekick-benchmark.SKILL.md`](examples/sidekick-benchmark.SKILL.md). Without the `ui` extra (or an
 LLM key for `test`/`benchmark`) these self-skip cleanly.
 
+> **The `ui` extra does not install for the public.** It depends on `agentic-tests`
+> (`git+https://github.com/redevops-io/agentic-tests.git@v0.1.0`), a **private** repository, so
+> `uv sync --extra ui` fails without access to it. The core commands (`plan`, `run`, `bench`, ...) do not need it.
+
 Run `sidekick` from inside the target git repository (changes are made to that repo's
 branches and merged into its current branch).
 
@@ -330,9 +358,16 @@ this table.
 
 ## Requirements
 
-- Claude Code native binary on PATH or `$CLAUDE_CODE_EXECPATH` (set inside Claude Code).
-- `git`, Python ≥ 3.12. `rich` (declared dep) for the live dashboard.
-- Auth via the running Claude Code session's credentials (or `ANTHROPIC_API_KEY`).
+(Earlier versions of this section listed the Claude Code binary as always required; that applies only to `--provider claude`.)
+
+Always: `git`, Python ≥ 3.12, and the declared deps (`rich`, `litellm`).
+
+Which others apply depends on `--provider` (the default is `local-cpu`):
+
+- **`local-cpu` (default), `local-metal`, `cuda`, `selfhosted`:** an OpenAI-compatible server you run
+  (e.g. llama.cpp/vLLM on `localhost:8080` or `:8000`). No API key, no Claude Code binary. sidekick probes the endpoint before running.
+- **`openai`, `anthropic`, `kimi`, `gemini`, `grok`, raw LiteLLM models:** the matching API key env var from the provider table. No Claude Code binary.
+- **`claude` only:** the Claude Code native binary on PATH or at `$CLAUDE_CODE_EXECPATH`, with auth from that session (or `ANTHROPIC_API_KEY`).
 - *Optional:* the VSCode `code` CLI for the in-editor progress doc + diffs (auto-detected;
   sidekick runs fine without it).
 
