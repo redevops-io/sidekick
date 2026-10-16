@@ -3,6 +3,10 @@
 End-to-end validation via `sidekick bench` (3 disjoint subtasks, real auto-approved
 headless Claude sessions on `claude-haiku-4-5`, serial baseline vs orchestrated at N=3).
 
+> **Evidence label: Illustrative/synthetic (single run).** One run, 3 agents, linear ceiling 3x, raw metrics not in repo (`metrics.jsonl` is NOT_IN_REPO). The task is the seed plan in `experiments/bench.py` (three independent one-function modules: `alpha.add`, `beta.mul`, `gamma.sub`); the serial baseline is the same plan at concurrency 1 in a fresh scratch repo. A 5.40x speedup with 3 agents exceeds the 3x linear ceiling and this document does not explain it. Repeat count and variance: NOT_IN_REPO.
+>
+> Reproduction note (from reading the code, not executed): the `bench` subcommand defines only `--concurrency` and `--keep`, so `sidekick bench --provider claude` below may be rejected by the argument parser; setting `SIDEKICK_PROVIDER=claude` in the environment is what `Config` reads.
+
 > Note: `sidekick bench` now defaults to the local model (`local-cpu`); reproduce these `claude-haiku` numbers with `sidekick bench --provider claude`.
 
 Serial baseline **35.7s** → orchestrated **6.6s** (3 parallel auto-approved agents).
