@@ -14,7 +14,7 @@
 
 ## Not supported / not claimed
 - The benchmark figure (serial 35.7s vs orchestrated 6.6s, 5.40x) is **Illustrative/synthetic (single run)**: toy task, 3 agents (linear ceiling 3x), raw metrics not in repo. No third-party reproduction.
-- The `ui` extra (`sidekick test` / `audit` / `benchmark`) depends on the private `agentic-tests` repository and cannot be installed by the public.
+- The `ui` extra (`sidekick test` / `audit` / `benchmark`) depends on a package that is not publicly available and cannot be installed by the public.
 
 ## Known issues
 - `RESULTS.md` says to run `sidekick bench --provider claude`, but the `bench` subcommand defines no `--provider` option (per code reading); use `SIDEKICK_PROVIDER=claude`.

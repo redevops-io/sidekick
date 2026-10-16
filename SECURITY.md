@@ -1,8 +1,6 @@
 # Security policy
 
-GitHub private vulnerability reporting is **not** enabled on this repository.
-
-Report vulnerabilities by email to **redevops@redevops.io** (listed on the ReDevOps GitHub organization); please do not file public issues for undisclosed vulnerabilities. Response times and supported-version policy: contact to be confirmed.
+Report vulnerabilities by email to **redevops@redevops.io** (listed on the ReDevOps GitHub organization); please do not file public issues for undisclosed vulnerabilities.
 
 ## Things to know before running sidekick
 - Agents run auto-approved: edits are accepted and `Bash` is limited to an allowlist (`--approval bypass` removes that limit). Run it only on repositories and machines where that is acceptable.

@@ -14,4 +14,4 @@ Do not install the `ui` extra: it needs a private repository.
 - Keep changes small and focused; add a test in `tests/` for behaviour changes.
 - Do not commit secrets (a secret-scan workflow runs).
 - Any performance number in docs must link to raw data in this repo or carry an evidence label (Illustrative/synthetic, Internally reproduced, ...).
-- Contributions are under the repository licence ([LICENSE](LICENSE)); other licensing questions: contact to be confirmed.
+- Contributions are under the repository licence ([LICENSE](LICENSE)).

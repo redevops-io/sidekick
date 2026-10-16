@@ -26,7 +26,7 @@ sidekick deploy-audit --host local --strict --json      # fail on any confirmed 
 sidekick deploy-audit --keep                            # leave the ephemeral stack up to inspect (debug)
 ```
 - `--host` — ssh alias (default `proxmox`) or `local` — where `docker compose` runs.
-- `--public-host` — host/ip a browser uses to reach the stack (default `<proxmox-host-ip>`).
+- `--public-host` — host/ip a browser uses to reach the stack (default `<host-ip>`).
 - `--llm-base-url` / `$STACK_LLM_BASE_URL` — the agents' OpenAI-compatible model endpoint (e.g. evo-x2's Qwen).
 
 ## What it does (and why it's safe)

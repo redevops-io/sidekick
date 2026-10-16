@@ -342,8 +342,7 @@ Add `--json` for a `schema_version: 1` envelope. Each mode is documented as an a
 [`examples/sidekick-benchmark.SKILL.md`](examples/sidekick-benchmark.SKILL.md). Without the `ui` extra (or an
 LLM key for `test`/`benchmark`) these self-skip cleanly.
 
-> **The `ui` extra does not install for the public.** It depends on `agentic-tests`
-> (`git+https://github.com/redevops-io/agentic-tests.git@v0.1.0`), a **private** repository, so
+> **The `ui` extra does not install for the public.** It depends on a package that is not publicly available, so
 > `uv sync --extra ui` fails without access to it. The core commands (`plan`, `run`, `bench`, ...) do not need it.
 
 Run `sidekick` from inside the target git repository (changes are made to that repo's
