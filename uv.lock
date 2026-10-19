@@ -10,7 +10,7 @@ resolution-markers = [
 [[package]]
 name = "agentic-tests"
 version = "0.1.0"
-source = { git = "https://github.com/redevops-io/agentic-tests.git?rev=master#56fd54e31082f3525fdca22f5250adafc86b4945" }
+source = { git = "https://github.com/redevops-io/agentic-tests.git?rev=v0.1.0#fbdd5dd21d4d11c4907517a05e50364f08aa1f63" }
 dependencies = [
     { name = "httpx" },
     { name = "pytest" },
@@ -5724,7 +5724,7 @@ ui = [
 
 [package.metadata]
 requires-dist = [
-    { name = "agentic-tests", extras = ["ui"], marker = "extra == 'ui'", git = "https://github.com/redevops-io/agentic-tests.git?rev=master" },
+    { name = "agentic-tests", extras = ["ui"], marker = "extra == 'ui'", git = "https://github.com/redevops-io/agentic-tests.git?rev=v0.1.0" },
     { name = "litellm", specifier = ">=1.50" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "rich", specifier = ">=13.7" },
