@@ -63,14 +63,19 @@ def _invoke(argv: List[str], *, json_out: bool = True) -> Dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- capabilities
-def _video(argv: List[str], video_dir: Optional[str]) -> List[str]:
-    """Ask the engine to save a short .webm screen capture of every page it drives into ``video_dir``."""
-    return argv + ["--video-dir", video_dir] if video_dir else argv
+def _video(argv: List[str], video_dir: Optional[str], capture_dir: Optional[str] = None) -> List[str]:
+    """Ask the engine to save a short .webm screen capture of every page it drives into ``video_dir`` and/or, with
+    ``capture_dir``, videos plus step screenshots under ``capture_dir/video`` and ``capture_dir/screenshots``."""
+    if video_dir:
+        argv = argv + ["--video-dir", video_dir]
+    if capture_dir:
+        argv = argv + ["--capture-dir", capture_dir]
+    return argv
 
 
 def run_test(url: str, goal: str, expect: str, *, steps: Optional[List[str]] = None,
              max_steps: int = 25, headed: bool = False, engine: Optional[str] = None,
-             video_dir: Optional[str] = None) -> Dict[str, Any]:
+             video_dir: Optional[str] = None, capture_dir: Optional[str] = None) -> Dict[str, Any]:
     """Drive a natural-language journey and PROVE the outcome with a deterministic predicate `expect`
     (usable_state:N | selector:CSS | selector_text:CSS=TEXT | url_contains:V)."""
     argv = ["journey", "--capability", goal, "--url", url, "--success", expect, "--max-steps", str(max_steps)]
@@ -80,12 +85,13 @@ def run_test(url: str, goal: str, expect: str, *, steps: Optional[List[str]] = N
         argv += ["--headed"]
     if engine:
         argv += ["--engine", engine]
-    return _invoke(_video(argv, video_dir), json_out=True)
+    return _invoke(_video(argv, video_dir, capture_dir), json_out=True)
 
 
 def run_audit(*, url: Optional[str] = None, service_type: Optional[str] = None,
               product: Optional[str] = None, all_targets: bool = False,
-              assert_regressions: Optional[str] = None, video_dir: Optional[str] = None) -> Dict[str, Any]:
+              assert_regressions: Optional[str] = None, video_dir: Optional[str] = None,
+              capture_dir: Optional[str] = None) -> Dict[str, Any]:
     """Deterministic WCAG / Core Web Vitals / browser-health audit of a page, a product, or the portfolio."""
     argv = ["audit-ui"]
     if url:
@@ -98,7 +104,7 @@ def run_audit(*, url: Optional[str] = None, service_type: Optional[str] = None,
         argv += ["--all"]
     if assert_regressions:
         argv += ["--assert-regressions", assert_regressions]
-    return _invoke(_video(argv, video_dir), json_out=True)
+    return _invoke(_video(argv, video_dir, capture_dir), json_out=True)
 
 
 def run_benchmark(capability: str, *, targets: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -111,7 +117,8 @@ def run_benchmark(capability: str, *, targets: Optional[List[str]] = None) -> Di
 
 def run_deploy_audit(*, host: str = "proxmox", public_host: str = "192.168.40.105",
                      llm_base_url: Optional[str] = None, llm_model: str = "qwen3.8-27b",
-                     strict: bool = False, keep: bool = False, video_dir: Optional[str] = None) -> Dict[str, Any]:
+                     strict: bool = False, keep: bool = False, video_dir: Optional[str] = None,
+                     capture_dir: Optional[str] = None) -> Dict[str, Any]:
     """Deploy the full apps stack the way redevops.io/projects documents it (into an isolated, ephemeral
     copy), then audit + run usability journeys over every surface, and tear it down. Needs a model endpoint
     (``llm_base_url`` or ``$STACK_LLM_BASE_URL``), docker on ``host``, and the browser layer; the engine
@@ -123,4 +130,4 @@ def run_deploy_audit(*, host: str = "proxmox", public_host: str = "192.168.40.10
         argv += ["--strict"]
     if keep:
         argv += ["--keep"]
-    return _invoke(_video(argv, video_dir), json_out=True)
+    return _invoke(_video(argv, video_dir, capture_dir), json_out=True)

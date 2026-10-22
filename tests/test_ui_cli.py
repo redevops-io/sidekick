@@ -70,3 +70,10 @@ def test_video_dir_and_engine_reach_the_engine():
 def test_no_video_flag_changes_nothing():
     _, argv = _capture_engine_argv(["audit", "https://x"])
     assert "--video-dir" not in argv
+
+
+def test_capture_dir_reaches_the_engine_for_every_ui_mode():
+    _, t = _capture_engine_argv(["test", "https://app.x", "g", "--expect", "selector:h1", "--capture-dir", "/c"])
+    _, a = _capture_engine_argv(["audit", "https://x", "--capture-dir", "/c"])
+    _, d = _capture_engine_argv(["deploy-audit", "--capture-dir", "/c"])
+    assert all(x[-2:] == ["--capture-dir", "/c"] for x in (t, a, d))
