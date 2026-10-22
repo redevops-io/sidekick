@@ -46,3 +46,7 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.uv]
+# browser-use pins anyio/pillow to releases with critical CVEs (CVE-2026-63374 / CVE-2026-112403); override to the fixed ones.
+override-dependencies = ["anyio>=4.14.2", "pillow>=13.0.0"]
