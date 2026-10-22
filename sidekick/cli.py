@@ -428,7 +428,8 @@ def cmd_test(args) -> int:
     from . import ui
     try:
         out = ui.run_test(args.url, args.goal, args.expect, steps=args.step or None,
-                          max_steps=args.max_steps, headed=args.headed)
+                          max_steps=args.max_steps, headed=args.headed,
+                          engine=getattr(args, "engine", None), video_dir=getattr(args, "video_dir", None))
     except ui.EngineUnavailable as e:
         _print(f"[warn] {e}" if _console else f"[warn] {e}")
         return 0
@@ -442,7 +443,8 @@ def cmd_audit(args) -> int:
     from . import ui
     try:
         out = ui.run_audit(url=args.url, service_type=args.type, product=args.product,
-                          all_targets=args.all, assert_regressions=args.assert_regressions)
+                          all_targets=args.all, assert_regressions=args.assert_regressions,
+                          video_dir=getattr(args, "video_dir", None))
     except ui.EngineUnavailable as e:
         _print(f"[warn] {e}")
         return 0
@@ -472,7 +474,8 @@ def cmd_deploy_audit(args) -> int:
     try:
         out = ui.run_deploy_audit(host=args.host, public_host=args.public_host,
                                   llm_base_url=args.llm_base_url, llm_model=args.llm_model,
-                                  strict=args.strict, keep=args.keep)
+                                  strict=args.strict, keep=args.keep,
+                                  video_dir=getattr(args, "video_dir", None))
     except ui.EngineUnavailable as e:
         _print(f"[warn] {e}")
         return 0
@@ -587,6 +590,10 @@ def build_parser() -> argparse.ArgumentParser:
     tp.add_argument("--step", action="append", default=[], help="explicit sub-step (repeatable)")
     tp.add_argument("--max-steps", type=int, default=25, dest="max_steps")
     tp.add_argument("--headed", action="store_true")
+    tp.add_argument("--engine", choices=["browser-use", "playwright"], default=None,
+                    help="agentic driver; the video capture needs the playwright engine")
+    tp.add_argument("--video-dir", default=None, dest="video_dir", metavar="DIR",
+                     help="save a short .webm screen capture of every page the run drives into DIR")
     tp.add_argument("--json", action="store_true", dest="json", help="emit a JSON envelope (schema_version 1)")
     tp.set_defaults(func=cmd_test)
 
@@ -598,6 +605,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap2.add_argument("--assert-regressions", default=None, dest="assert_regressions", metavar="STORE",
                      help="fail if any persisted fixed-signature reappears")
     ap2.add_argument("--json", action="store_true", dest="json", help="emit a JSON envelope (schema_version 1)")
+    ap2.add_argument("--video-dir", default=None, dest="video_dir", metavar="DIR",
+                     help="save a short .webm screen capture of every page the run drives into DIR")
     ap2.set_defaults(func=cmd_audit)
 
     bmp = sub.add_parser("benchmark", help="Time-to-Capability head-to-head across targets (Sidekick Benchmark)")
@@ -617,6 +626,8 @@ def build_parser() -> argparse.ArgumentParser:
     dap.add_argument("--strict", action="store_true", help="non-zero exit on any confirmed audit blocker")
     dap.add_argument("--keep", action="store_true", help="leave the ephemeral stack running (debug)")
     dap.add_argument("--json", action="store_true", dest="json", help="emit a JSON envelope (schema_version 1)")
+    dap.add_argument("--video-dir", default=None, dest="video_dir", metavar="DIR",
+                     help="save a short .webm screen capture of every page the run drives into DIR")
     dap.set_defaults(func=cmd_deploy_audit)
 
     return p

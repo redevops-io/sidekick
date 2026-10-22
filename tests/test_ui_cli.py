@@ -56,3 +56,17 @@ def test_missing_engine_skips_gracefully():
     with mock.patch.object(ui, "_invoke", side_effect=ui.EngineUnavailable("no engine")):
         rc = cli.main(["audit", "https://x"])
     assert rc == 0  # self-skip, not a hard failure
+
+
+def test_video_dir_and_engine_reach_the_engine():
+    _, argv = _capture_engine_argv(["test", "https://app.x", "g", "--expect", "selector:h1", "--engine", "playwright", "--video-dir", "/v"])
+    assert argv[-2:] == ["--video-dir", "/v"] and argv[argv.index("--engine") + 1] == "playwright"
+    _, a = _capture_engine_argv(["audit", "https://x", "--video-dir", "/v"])
+    assert a == ["audit-ui", "--url", "https://x", "--video-dir", "/v"]
+    _, d = _capture_engine_argv(["deploy-audit", "--video-dir", "/v"])
+    assert d[-2:] == ["--video-dir", "/v"]
+
+
+def test_no_video_flag_changes_nothing():
+    _, argv = _capture_engine_argv(["audit", "https://x"])
+    assert "--video-dir" not in argv
