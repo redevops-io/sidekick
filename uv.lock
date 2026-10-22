@@ -5725,7 +5725,7 @@ ui = [
 [package.metadata]
 requires-dist = [
     { name = "agentic-tests", extras = ["ui"], marker = "extra == 'ui'", git = "https://github.com/redevops-io/agentic-tests.git?rev=master" },
-    { name = "litellm", specifier = ">=1.50" },
+    { name = "litellm", specifier = ">=1.50,!=1.107.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "rich", specifier = ">=13.7" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.7" },
