@@ -1,7 +1,7 @@
 [project]
 name = "sidekick"
 version = "0.1.0"
-license = "AGPL-3.0-or-later"
+license = { text = "AGPL-3.0-or-later WITH Commons-Clause" }
 description = "Local coding-agent orchestrator: fan out auto-approved coding agents (any LLM via LiteLLM, or native Claude Code) across git worktrees with live progress and measured speed/accuracy objectives."
 requires-python = ">=3.12"
 dependencies = [
