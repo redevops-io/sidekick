@@ -426,3 +426,25 @@ the envelope shape is identical — only the `backend` field changes.
 ## License
 
 **Source-available, not open source** (the wording of [LICENSE.md](LICENSE.md)): AGPL-3.0-or-later **WITH** the Commons Clause. Self-host freely, including inside a company for its own business. The Clause removes the right to *sell it*: to charge third parties for the software, for hosting it, or for services whose value derives substantially from it. Earlier versions remain available under the terms they were released with; see LICENSE.md.
+
+## Changing the model provider or key of a running stack (`sidekick provider`)
+
+Wire the stack with any provider API key or a local model, then change it later without reinstalling:
+
+```bash
+sidekick provider show                                   # provider, model, key REFERENCE (never a key)
+sidekick provider set --base-url http://127.0.0.1:8000/v1 --model my-local-model          # local model
+sidekick provider set --base-url https://api.openai.com/v1 --model gpt-x --allow-external-host \
+    --key-env OPENAI_API_KEY --persist env_ref           # use the variable you already export; nothing is written
+sidekick provider set --base-url ... --model ... --key-env MY_KEY \
+    --key-ref keepassxc:Redevops/LLM --persist store     # keep it in KeePassXC (or vault:/keyring:/file:)
+sidekick provider rotate --persist store                 # hidden prompt for the new key
+sidekick provider test
+```
+
+A key is never a flag: name the variable (`--key-env NAME`) or type it at the hidden prompt. Every change prints a
+preview (including whether model traffic leaves your trust boundary), applies only after you confirm, is tested with
+a minimal call, and is rolled back to exactly the previous state if the test fails. The running agents pick it up on
+their next call. Requires `agentic-os >= 0.3.43` and `REDEVOPS_LLM_SETTINGS_FILE`; the approval authority is you at the
+terminal (`AGENTIC_OS_APPROVAL_SECRET`). The Sidekick agent uses the same rules through the kernel capability
+`operations.model_provider`.

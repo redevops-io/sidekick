@@ -557,6 +557,9 @@ def build_parser() -> argparse.ArgumentParser:
     add_agent_opts(rep)
     rep.set_defaults(func=cmd_repl)
 
+    from . import provider_cmd
+    provider_cmd.add_parser(sub)
+
     vp = sub.add_parser("voice", help="Speak one coding task and run it")
     vp.add_argument("--seconds", type=int, default=None, help="Recording length (default 8)")
     vp.add_argument("-y", "--yes", action="store_true", help="Skip plan confirmation")
