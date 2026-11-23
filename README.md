@@ -280,12 +280,18 @@ sidekick gateway                       # long-running daemon over every configur
 | **iMessage** | ✅ relay command | ✅ relay inbox file | ⚠️ needs a Mac relay (BlueBubbles/AppleScript) | `SIDEKICK_IMESSAGE_SEND_CMD`, `SIDEKICK_IMESSAGE_INBOX` |
 
 Slack/WhatsApp use webhooks, so the gateway also starts a small HTTP server
-(`--http-host`/`--http-port`, default `0.0.0.0:8787`) to receive callbacks; Telegram and
+(`--http-host`/`--http-port`, default `127.0.0.1:8787`; put a TLS proxy or tunnel in front of it) to receive callbacks; Telegram and
 iMessage are polled and need no inbound port.
 
 **Safety.** Inbound messages trigger *auto-approved* coding runs, so the gateway is **closed
 by default**: it acts only on senders listed in `SIDEKICK_GATEWAY_ALLOW` (comma-separated
 handles). Set `SIDEKICK_GATEWAY_OPEN=1` to accept anyone — only on a trusted, private box.
+
+Inbound webhooks must be signed by the provider. Set `SIDEKICK_SLACK_SIGNING_SECRET` (Slack request signing) and
+`SIDEKICK_WHATSAPP_APP_SECRET` (Meta `X-Hub-Signature-256`); a callback whose signature does not verify is dropped
+before it is parsed, because the sender id the allowlist checks is inside the request body. Without the secret that
+channel accepts no inbound messages. `SIDEKICK_WEBHOOK_ALLOW_UNSIGNED=1` turns the check off; use it only when
+nothing but an authenticating proxy can reach the listener.
 
 `SIDEKICK_CHANNELS` (comma-separated) selects which adapters to load; unset = all that have
 credentials present. A channel missing its tokens is silently skipped.

@@ -33,6 +33,9 @@ from .base import DELIVERY_POLL, DELIVERY_WEBHOOK, Channel, InboundMessage
 from .notify import Notifier
 
 
+MAX_WEBHOOK_BYTES = 1 << 20     # a provider callback is a few kilobytes; nothing larger is read
+
+
 class Gateway:
     def __init__(
         self,
@@ -42,7 +45,7 @@ class Gateway:
         max_subtasks: int = 6,
         allow: list[str] | None = None,
         open_access: bool | None = None,
-        http_host: str = "0.0.0.0",
+        http_host: str = "127.0.0.1",
         http_port: int = 8787,
     ):
         self.cfg = cfg
@@ -99,11 +102,21 @@ class Gateway:
                 self._respond(200, "ok")
 
             def do_POST(self):
-                length = int(self.headers.get("Content-Length", 0) or 0)
+                try:
+                    length = int(self.headers.get("Content-Length", 0) or 0)
+                except ValueError:
+                    length = -1
+                if not 0 <= length <= MAX_WEBHOOK_BYTES:
+                    self._respond(413 if length > 0 else 400, "refused")
+                    return
                 body = self.rfile.read(length) if length else b""
                 headers = {k.lower(): v for k, v in self.headers.items()}
                 reply = "ok"
                 for c in webhook_channels:
+                    # Authenticate the callback before reading anything out of it: the sender id the allowlist is
+                    # checked against is inside the body, so an unsigned body could name any allowed sender.
+                    if not c.verify_webhook(headers, body):
+                        continue
                     for msg in c.parse_webhook(headers, body):
                         if gateway._authorized(msg):
                             gateway.inbox.put(msg)

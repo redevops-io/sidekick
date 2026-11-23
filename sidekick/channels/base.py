@@ -18,6 +18,8 @@ feature runs on a $5 VPS with nothing but Python, matching Hermes' "run it anywh
 
 from __future__ import annotations
 
+import os
+
 import json
 import urllib.error
 import urllib.request
@@ -70,6 +72,19 @@ class Channel:
     def webhook_challenge(self, query: dict) -> str | None:
         """Optional verification handshake (e.g. WhatsApp hub.challenge echo)."""
         return None
+
+    def verify_webhook(self, headers: dict, body: bytes) -> bool:
+        """True only when the callback is proven to come from the provider (a signature over the raw body made
+        with a secret only the provider and this host hold). The gateway drops a callback that fails this BEFORE
+        parsing it: the sender id inside the body is data the caller wrote, so the allowlist means nothing until
+        the body itself is authenticated. Default: refuse (a webhook adapter must implement its provider's scheme)."""
+        return False
+
+
+def unsigned_webhooks_allowed() -> bool:
+    """``SIDEKICK_WEBHOOK_ALLOW_UNSIGNED=1``: accept callbacks without a provider signature. Only for a listener
+    that nothing but a trusted, authenticating proxy can reach; anyone else who can reach it can run tasks."""
+    return os.environ.get("SIDEKICK_WEBHOOK_ALLOW_UNSIGNED", "") in ("1", "true", "yes")
 
 
 def http_json(

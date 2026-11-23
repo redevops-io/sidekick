@@ -545,7 +545,8 @@ def build_parser() -> argparse.ArgumentParser:
         "gateway", help="Receive tasks over chat (Telegram/Slack/WhatsApp/iMessage), run, reply"
     )
     gp.add_argument("--channels", help="Comma-separated channel subset (default: all configured)")
-    gp.add_argument("--http-host", default="0.0.0.0", dest="http_host", help="Webhook bind host")
+    gp.add_argument("--http-host", default="127.0.0.1", dest="http_host",
+                    help="Webhook bind host (loopback by default; put a TLS proxy or tunnel in front for Slack/WhatsApp)")
     gp.add_argument("--http-port", type=int, default=8787, dest="http_port", help="Webhook bind port")
     add_agent_opts(gp)
     gp.set_defaults(func=cmd_gateway)

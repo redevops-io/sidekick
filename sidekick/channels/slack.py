@@ -7,15 +7,19 @@ handshake and message events are handled in `parse_webhook` / `webhook_challenge
 Config (env):
   SIDEKICK_SLACK_BOT_TOKEN   xoxb-… bot token (outbound)
   SIDEKICK_SLACK_CHANNEL     default channel id for notifications
-  SIDEKICK_SLACK_SIGNING_*   (verification is out of scope here; run behind a trusted proxy)
+  SIDEKICK_SLACK_SIGNING_SECRET  the app's signing secret; inbound events are refused unless their
+                             X-Slack-Signature verifies against it (see verify_webhook)
 """
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
+import time
 
-from .base import DELIVERY_WEBHOOK, Channel, InboundMessage, http_json
+from .base import DELIVERY_WEBHOOK, Channel, InboundMessage, http_json, unsigned_webhooks_allowed
 
 _POST = "https://slack.com/api/chat.postMessage"
 
@@ -24,9 +28,23 @@ class SlackChannel(Channel):
     name = "slack"
     delivery = DELIVERY_WEBHOOK
 
-    def __init__(self, token: str | None = None, channel: str | None = None):
+    def __init__(self, token: str | None = None, channel: str | None = None, signing_secret: str | None = None):
         self.token = token or os.environ.get("SIDEKICK_SLACK_BOT_TOKEN", "")
         self.channel = channel or os.environ.get("SIDEKICK_SLACK_CHANNEL", "")
+        self.signing_secret = signing_secret if signing_secret is not None else os.environ.get("SIDEKICK_SLACK_SIGNING_SECRET", "")
+
+    MAX_SKEW_S = 300      # Slack's own replay window
+
+    def verify_webhook(self, headers: dict, body: bytes) -> bool:
+        """Slack request signing (v0): HMAC-SHA256 of ``v0:<timestamp>:<raw body>`` with the signing secret, and a
+        timestamp no older than five minutes. No secret configured means no inbound Slack events."""
+        if not self.signing_secret:
+            return unsigned_webhooks_allowed()
+        ts, sig = headers.get("x-slack-request-timestamp", ""), headers.get("x-slack-signature", "")
+        if not ts.isdigit() or abs(time.time() - int(ts)) > self.MAX_SKEW_S:
+            return False
+        want = "v0=" + hmac.new(self.signing_secret.encode(), b"v0:" + ts.encode() + b":" + body, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(want, sig)
 
     @property
     def enabled(self) -> bool:
