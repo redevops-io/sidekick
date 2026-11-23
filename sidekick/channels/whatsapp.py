@@ -16,10 +16,12 @@ Config (env):
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 
-from .base import DELIVERY_WEBHOOK, Channel, InboundMessage, http_json
+from .base import DELIVERY_WEBHOOK, Channel, InboundMessage, http_json, unsigned_webhooks_allowed
 
 _API = "https://graph.facebook.com/v20.0/{phone_id}/messages"
 
@@ -39,6 +41,7 @@ class WhatsAppChannel(Channel):
         self.phone_id = phone_id or os.environ.get("SIDEKICK_WHATSAPP_PHONE_ID", "")
         self.verify_token = verify_token or os.environ.get("SIDEKICK_WHATSAPP_VERIFY_TOKEN", "")
         self.default_to = default_to or os.environ.get("SIDEKICK_WHATSAPP_DEFAULT_TO", "")
+        self.app_secret = os.environ.get("SIDEKICK_WHATSAPP_APP_SECRET", "")
 
     @property
     def enabled(self) -> bool:
@@ -62,9 +65,20 @@ class WhatsAppChannel(Channel):
 
     def webhook_challenge(self, query: dict) -> str | None:
         """Meta GET handshake: echo hub.challenge iff the verify token matches."""
-        if query.get("hub.mode") == "subscribe" and query.get("hub.verify_token") == self.verify_token:
+        if not self.verify_token:                      # an unset token must not match an empty parameter
+            return None
+        if query.get("hub.mode") == "subscribe" and hmac.compare_digest(str(query.get("hub.verify_token", "")), self.verify_token):
             return query.get("hub.challenge")
         return None
+
+    def verify_webhook(self, headers: dict, body: bytes) -> bool:
+        """Meta signs every callback: ``X-Hub-Signature-256: sha256=<HMAC-SHA256(app secret, raw body)>``. No app
+        secret configured (``SIDEKICK_WHATSAPP_APP_SECRET``) means no inbound WhatsApp messages."""
+        if not self.app_secret:
+            return unsigned_webhooks_allowed()
+        sig = headers.get("x-hub-signature-256", "")
+        want = "sha256=" + hmac.new(self.app_secret.encode(), body, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(want, sig)
 
     def parse_webhook(self, headers: dict, body: bytes) -> list[InboundMessage]:
         try:
