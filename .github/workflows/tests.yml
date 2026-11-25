@@ -16,4 +16,15 @@ jobs:
           python-version: "3.12"
       - run: pip install uv
       - run: uv sync --frozen --extra dev
-      - run: uv run --frozen pytest
+      - run: uv run --frozen pytest --junitxml="$RUNNER_TEMP/sidekick-tests.xml"
+      - name: Report the run to the QA portfolio dashboard
+        # the default branch only (the dashboard shows its state, not every pull request's); failures are reported too; a dashboard
+        # outage never fails the build, and with no token (a fork) nothing is reported
+        if: ${{ always() && github.event_name == 'push' }}
+        uses: redevops-io/agentic-os/.github/actions/report-qa@v0.4.12
+        with:
+          junit: ${{ runner.temp }}/sidekick-tests.xml
+          project: sidekick
+          suite: unit
+          url: ${{ vars.QA_DASHBOARD_URL }}
+          token: ${{ secrets.QA_DASHBOARD_TOKEN }}
